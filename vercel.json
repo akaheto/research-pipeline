@@ -1,0 +1,11 @@
+{
+  "buildCommand": "cd web && npm install && npm run build",
+  "outputDirectory": "web/.next",
+  "framework": "nextjs",
+  "env": {
+    "ANTHROPIC_API_KEY": {
+      "description": "Your Anthropic API key for accessing Claude",
+      "required": true
+    }
+  }
+}
