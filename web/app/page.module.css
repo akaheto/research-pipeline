@@ -1,0 +1,414 @@
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  text-align: center;
+  color: white;
+  margin-bottom: 40px;
+  margin-top: 20px;
+}
+
+.header h1 {
+  font-size: 2.5em;
+  margin-bottom: 10px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.header p {
+  font-size: 1.1em;
+  opacity: 0.9;
+}
+
+.main {
+  flex: 1;
+}
+
+.searchForm {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.input {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  transition: border-color 0.3s;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.button {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.settingsButton {
+  padding: 12px 16px;
+  background: #f0f0f0;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.settingsButton:hover {
+  background: #e0e0e0;
+}
+
+.settings {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.settings h3 {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.settings label {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.settings label strong {
+  min-width: 40px;
+  text-align: right;
+}
+
+.settings input[type="range"] {
+  flex: 1;
+  min-width: 200px;
+}
+
+.settings input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.error {
+  background: #ffebee;
+  border: 2px solid #ef5350;
+  color: #c62828;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.results {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  margin-bottom: 30px;
+}
+
+.header2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.header2 h2 {
+  color: #333;
+  font-size: 1.8em;
+  margin: 0;
+}
+
+.downloadButtons {
+  display: flex;
+  gap: 10px;
+}
+
+.downloadBtn {
+  padding: 10px 16px;
+  background: #f5f5f5;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.downloadBtn:hover {
+  background: #e8e8e8;
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.summary {
+  background: #f9f9f9;
+  padding: 20px;
+  border-left: 4px solid #667eea;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+
+.summary h3 {
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.summary p {
+  color: #666;
+  line-height: 1.6;
+}
+
+.insights {
+  background: #f0f4ff;
+  padding: 20px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  border-left: 4px solid #667eea;
+}
+
+.insights h3 {
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.insights ul {
+  list-style: none;
+  padding-left: 20px;
+}
+
+.insights li {
+  color: #666;
+  padding: 8px 0;
+  position: relative;
+}
+
+.insights li:before {
+  content: "→";
+  position: absolute;
+  left: -15px;
+  color: #667eea;
+}
+
+.findings h3 {
+  color: #333;
+  margin-bottom: 20px;
+  font-size: 1.3em;
+}
+
+.finding {
+  background: #fafafa;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  border: 1px solid #e0e0e0;
+  transition: all 0.2s;
+}
+
+.finding:hover {
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+  border-color: #667eea;
+}
+
+.findingContent {
+  margin-bottom: 15px;
+}
+
+.findingText {
+  color: #333;
+  font-size: 1.05em;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.scoreBar {
+  height: 6px;
+  background: #e0e0e0;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.scoreIndicator {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  transition: width 0.3s;
+}
+
+.scores {
+  display: flex;
+  gap: 15px;
+  font-size: 0.9em;
+  flex-wrap: wrap;
+}
+
+.scores span {
+  color: #666;
+}
+
+.combined {
+  font-weight: 600;
+  color: #667eea;
+}
+
+.source {
+  border-top: 1px solid #e0e0e0;
+  padding-top: 12px;
+}
+
+.source a {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.source a:hover {
+  color: #764ba2;
+  text-decoration: underline;
+}
+
+.source p {
+  color: #999;
+  font-size: 0.9em;
+  margin-top: 4px;
+}
+
+.history {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.history h3 {
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.historyItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.historyItem:hover {
+  background: #efefef;
+  border-color: #667eea;
+}
+
+.historyTopic {
+  flex: 1;
+  color: #333;
+  font-weight: 500;
+}
+
+.historyDate {
+  color: #999;
+  font-size: 0.9em;
+  margin: 0 20px;
+}
+
+.historyCount {
+  color: #667eea;
+  font-weight: 600;
+}
+
+.footer {
+  text-align: center;
+  color: white;
+  padding: 20px;
+  margin-top: 40px;
+  opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 15px;
+  }
+
+  .header h1 {
+    font-size: 2em;
+  }
+
+  .searchForm {
+    flex-direction: column;
+  }
+
+  .header2 {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .downloadButtons {
+    width: 100%;
+  }
+
+  .downloadBtn {
+    flex: 1;
+  }
+
+  .scores {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .historyItem {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+
+  .historyDate {
+    margin: 0;
+  }
+}
