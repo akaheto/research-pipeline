@@ -7,13 +7,13 @@ from pathlib import Path
 class Config:
     """Pipeline configuration from environment variables."""
 
-    # MCP Server endpoints
-    PERPLEXITY_MCP_URL = os.getenv("PERPLEXITY_MCP_URL", "http://localhost:3001")
-    PROJECT_10_MCP_URL = os.getenv("PROJECT_10_MCP_URL", "http://localhost:3002")
-
     # API Keys
     PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+    # API Endpoints
+    PERPLEXITY_API_BASE_URL = os.getenv("PERPLEXITY_API_BASE_URL", "https://api.perplexity.ai/v1")
+    PROJECT_10_MCP_URL = os.getenv("PROJECT_10_MCP_URL", "http://localhost:3002")
 
     # Output paths
     OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "./output"))
