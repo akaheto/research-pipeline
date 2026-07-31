@@ -35,6 +35,7 @@ interface SearchHistory {
 export default function Home() {
   const [topic, setTopic] = useState("");
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<string>("");
   const [result, setResult] = useState<Research | null>(null);
   const [history, setHistory] = useState<SearchHistory[]>([]);
   const [showSettings, setShowSettings] = useState(false);
@@ -59,7 +60,9 @@ export default function Home() {
     if (!topic.trim()) return;
 
     setLoading(true);
+    setProgress("");
     setError("");
+    setResult(null);
 
     try {
       const response = await fetch("/api/research", {
@@ -77,21 +80,51 @@ export default function Home() {
         throw new Error("Research failed. Make sure ANTHROPIC_API_KEY is set.");
       }
 
-      const data = await response.json();
-      setResult(data);
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("Response body is empty");
 
-      // Add to history
-      const newEntry: SearchHistory = {
-        id: Date.now().toString(),
-        topic,
-        timestamp: Date.now(),
-        data,
-      };
-      setHistory([newEntry, ...history.slice(0, 19)]);
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            const eventType = line.slice(7);
+            const dataLine = lines[lines.indexOf(line) + 1];
+
+            if (dataLine?.startsWith("data: ")) {
+              const data = JSON.parse(dataLine.slice(6));
+
+              if (eventType === "progress") {
+                setProgress(data.message);
+              } else if (eventType === "complete") {
+                setResult(data);
+                const newEntry: SearchHistory = {
+                  id: Date.now().toString(),
+                  topic,
+                  timestamp: Date.now(),
+                  data,
+                };
+                setHistory([newEntry, ...history.slice(0, 19)]);
+              } else if (eventType === "error") {
+                setError(data.message);
+              }
+            }
+          }
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
+      setProgress("");
     }
   };
 
@@ -158,6 +191,14 @@ export default function Home() {
         </form>
 
         {error && <div className={styles.error}>{error}</div>}
+
+        {/* Progress Display */}
+        {loading && progress && (
+          <div className={styles.progress}>
+            <div className={styles.progressSpinner} />
+            <p>{progress}</p>
+          </div>
+        )}
 
         {/* Settings Panel */}
         {showSettings && (
