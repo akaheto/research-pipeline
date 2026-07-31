@@ -100,6 +100,60 @@ function generateWord(result: any, citationFormat: CitationFormat = "none"): str
   return text;
 }
 
+function generatePdf(result: any, citationFormat: CitationFormat = "none"): string {
+  // Generate HTML that will be converted to PDF on the client
+  let html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>${result.topic} - Research Report</title>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 850px; margin: 0 auto; padding: 20px; }
+        h1 { color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+        h2 { color: #764ba2; margin-top: 30px; }
+        h3 { color: #333; }
+        .meta { background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 20px; font-size: 0.95em; }
+        .finding { background: #fafafa; padding: 15px; border-left: 4px solid #667eea; margin: 15px 0; }
+        .scores { font-size: 0.9em; color: #666; }
+        .source { color: #667eea; text-decoration: none; font-weight: 600; }
+        .citation { margin: 10px 0; font-size: 0.95em; line-height: 1.5; }
+        .page-break { page-break-after: always; }
+      </style>
+    </head>
+    <body>
+      <h1>Research Report: ${result.topic}</h1>
+      <div class="meta">
+        <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+        <p><strong>Findings:</strong> ${result.findings.length}</p>
+        ${citationFormat !== "none" ? `<p><strong>Citation Format:</strong> ${citationFormat.toUpperCase()}</p>` : ""}
+      </div>
+      ${result.summary ? `<h2>Summary</h2><p>${result.summary}</p>` : ""}
+      <h2>Key Findings</h2>
+      ${result.findings
+        .map(
+          (finding: any, i: number) => `
+        <div class="finding">
+          <h3>${i + 1}. ${finding.text.substring(0, 100)}</h3>
+          <p><strong>Source:</strong> <a class="source" href="${finding.source.url}">${finding.source.title}</a></p>
+          <p><strong>Domain:</strong> ${finding.source.domain}</p>
+          <div class="scores">
+            <p>Relevance: ${(finding.scores.relevance * 100).toFixed(0)}% |
+               Credibility: ${(finding.scores.credibility * 100).toFixed(0)}% |
+               Recency: ${(finding.scores.recency * 100).toFixed(0)}% |
+               Combined: ${(finding.scores.combined * 100).toFixed(0)}%</p>
+          </div>
+        </div>
+      `
+        )
+        .join("")}
+      ${citationFormat !== "none" ? `<div class="page-break"></div><h2>References</h2>${result.findings.map((finding: any, i: number) => `<div class="citation">${i + 1}. ${formatCitation(finding, citationFormat)}</div>`).join("")}` : ""}
+    </body>
+    </html>
+  `;
+  return html;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -126,6 +180,10 @@ export async function POST(request: NextRequest) {
       content = generateWord(result, citations);
       contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
       filename = `${result.topic.replace(/\s+/g, "_")}.docx`;
+    } else if (format === "pdf") {
+      content = generatePdf(result, citations);
+      contentType = "text/html; charset=utf-8";
+      filename = `${result.topic.replace(/\s+/g, "_")}.html`;
     } else {
       return NextResponse.json({ error: "Invalid format" }, { status: 400 });
     }

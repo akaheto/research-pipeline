@@ -134,7 +134,7 @@ export default function Home() {
     setTopic(entry.topic);
   };
 
-  const handleDownload = async (format: "docx" | "markdown") => {
+  const handleDownload = async (format: "docx" | "markdown" | "pdf") => {
     if (!result) return;
 
     try {
@@ -150,8 +150,19 @@ export default function Home() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${result.topic.replace(/\s+/g, "_")}.${format === "docx" ? "docx" : "md"}`;
-      a.click();
+
+      if (format === "pdf") {
+        // For PDF, open in browser first then print
+        const pdfWindow = window.open(url);
+        if (pdfWindow) {
+          pdfWindow.addEventListener("load", () => {
+            pdfWindow.print();
+          });
+        }
+      } else {
+        a.download = `${result.topic.replace(/\s+/g, "_")}.${format === "docx" ? "docx" : "md"}`;
+        a.click();
+      }
     } catch (err) {
       setError("Download failed");
     }
@@ -268,6 +279,9 @@ export default function Home() {
                   </button>
                   <button onClick={() => handleDownload("docx")} className={styles.downloadBtn}>
                     📄 Word
+                  </button>
+                  <button onClick={() => handleDownload("pdf")} className={styles.downloadBtn}>
+                    📕 PDF
                   </button>
                 </div>
               </div>
