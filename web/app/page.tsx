@@ -23,7 +23,6 @@ interface Research {
   topic: string;
   findings: Finding[];
   summary: string;
-  knowledge_base_insights: string[];
 }
 
 interface SearchHistory {
@@ -40,7 +39,6 @@ export default function Home() {
   const [history, setHistory] = useState<SearchHistory[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [maxResults, setMaxResults] = useState(20);
-  const [includeKB, setIncludeKB] = useState(true);
   const [similarity, setSimilarity] = useState(0.85);
   const [minScore, setMinScore] = useState(0);
   const [error, setError] = useState("");
@@ -70,7 +68,6 @@ export default function Home() {
         body: JSON.stringify({
           topic,
           max_results: maxResults,
-          include_knowledge_base: includeKB,
           similarity_threshold: similarity,
           min_score: minScore,
         }),
@@ -130,7 +127,7 @@ export default function Home() {
     <div className={styles.container}>
       <header className={styles.header}>
         <h1>🔬 Research Pipeline</h1>
-        <p>Real-time web + knowledge base research</p>
+        <p>Real-time web research powered by Perplexity</p>
       </header>
 
       <main className={styles.main}>
@@ -200,15 +197,6 @@ export default function Home() {
                 onChange={(e) => setMinScore(Number(e.target.value))}
               />
             </label>
-
-            <label>
-              <input
-                type="checkbox"
-                checked={includeKB}
-                onChange={(e) => setIncludeKB(e.target.checked)}
-              />
-              Include Knowledge Base
-            </label>
           </div>
         )}
 
@@ -231,17 +219,6 @@ export default function Home() {
               <div className={styles.summary}>
                 <h3>Summary</h3>
                 <p>{result.summary}</p>
-              </div>
-            )}
-
-            {result.knowledge_base_insights.length > 0 && (
-              <div className={styles.insights}>
-                <h3>📚 Knowledge Base Insights</h3>
-                <ul>
-                  {result.knowledge_base_insights.map((insight, i) => (
-                    <li key={i}>{insight}</li>
-                  ))}
-                </ul>
               </div>
             )}
 

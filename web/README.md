@@ -24,7 +24,6 @@ See [WEB_DEPLOYMENT.md](../WEB_DEPLOYMENT.md) for complete deployment instructio
 
 - 🔍 Search research topics
 - 📊 Quality scores (relevance, credibility, recency)
-- 📚 Knowledge base integration
 - 💾 Search history
 - ⚙️ Customizable settings
 - 📥 Download as Markdown or Word
@@ -75,7 +74,6 @@ Research a topic.
 {
   "topic": "AI trends 2024",
   "max_results": 20,
-  "include_knowledge_base": true,
   "similarity_threshold": 0.85,
   "min_score": 0
 }
@@ -87,7 +85,6 @@ Research a topic.
   "topic": "AI trends 2024",
   "findings": [...],
   "summary": "...",
-  "knowledge_base_insights": [...],
   "created_at": "2024-07-30T..."
 }
 ```

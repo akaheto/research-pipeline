@@ -35,7 +35,6 @@ class Research(BaseModel):
 
     topic: str
     findings: list[Finding]
-    knowledge_base_insights: list[str] = []
     summary: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -46,4 +45,3 @@ class PipelineConfig(BaseModel):
     output_format: str = "docx"  # "docx" or "markdown"
     output_path: str
     max_results: int = 20
-    include_knowledge_base: bool = True

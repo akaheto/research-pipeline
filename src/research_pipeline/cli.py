@@ -35,11 +35,6 @@ def run(
         "--format", "-f",
         help="Output format: docx or markdown"
     ),
-    knowledge_base: bool = typer.Option(
-        True,
-        "--knowledge-base/--no-knowledge-base",
-        help="Include cross-reference with Project 10 knowledge base"
-    ),
     similarity_threshold: float = typer.Option(
         0.85,
         "--similarity", "-s",
@@ -62,7 +57,6 @@ def run(
             output=output,
             max_results=max_results,
             format=format,
-            knowledge_base=knowledge_base,
             similarity_threshold=similarity_threshold,
             min_score=min_score
         ))
@@ -79,7 +73,6 @@ async def _run_async(
     output: Optional[str],
     max_results: int,
     format: str,
-    knowledge_base: bool,
     similarity_threshold: float,
     min_score: float,
 ):
@@ -88,7 +81,6 @@ async def _run_async(
     typer.echo(f"📌 Topic: {topic}")
     typer.echo(f"📊 Max results: {max_results}")
     typer.echo(f"📄 Format: {format}")
-    typer.echo(f"🧠 Knowledge base: {'enabled' if knowledge_base else 'disabled'}")
     typer.echo()
 
     # Validate configuration
@@ -114,14 +106,10 @@ async def _run_async(
         connections = await collector.validate_all_connections()
         if not connections.get("perplexity"):
             typer.echo("⚠️  Warning: Perplexity connection failed", err=True)
-        if not connections.get("project_10") and knowledge_base:
-            typer.echo("⚠️  Warning: Project 10 connection failed", err=True)
 
         research = await collector.collect_all(
             topic=topic,
-            max_web_results=max_results,
-            max_kb_results=10,
-            include_knowledge_base=knowledge_base
+            max_web_results=max_results
         )
         typer.echo(f"✅ Collected {len(research.findings)} findings")
     except Exception as e:

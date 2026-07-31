@@ -13,7 +13,6 @@ class Config:
 
     # API Endpoints
     PERPLEXITY_API_BASE_URL = os.getenv("PERPLEXITY_API_BASE_URL", "https://api.perplexity.ai/v1")
-    PROJECT_10_MCP_URL = os.getenv("PROJECT_10_MCP_URL", "http://localhost:3002")
 
     # Output paths
     OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "./output"))
