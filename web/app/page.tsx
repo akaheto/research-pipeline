@@ -42,6 +42,7 @@ export default function Home() {
   const [maxResults, setMaxResults] = useState(20);
   const [similarity, setSimilarity] = useState(0.85);
   const [minScore, setMinScore] = useState(0);
+  const [citationFormat, setCitationFormat] = useState<"none" | "apa" | "mla" | "chicago">("none");
   const [error, setError] = useState("");
 
   // Load history from localStorage
@@ -140,7 +141,7 @@ export default function Home() {
       const response = await fetch("/api/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ result, format }),
+        body: JSON.stringify({ result, format, citationFormat }),
       });
 
       if (!response.ok) throw new Error("Download failed");
@@ -246,13 +247,29 @@ export default function Home() {
           <div className={styles.results}>
             <div className={styles.header2}>
               <h2>{result.topic}</h2>
-              <div className={styles.downloadButtons}>
-                <button onClick={() => handleDownload("markdown")} className={styles.downloadBtn}>
-                  📝 Markdown
-                </button>
-                <button onClick={() => handleDownload("docx")} className={styles.downloadBtn}>
-                  📄 Word
-                </button>
+              <div className={styles.downloadSection}>
+                <div className={styles.citationFormat}>
+                  <label htmlFor="citation">Citations:</label>
+                  <select
+                    id="citation"
+                    value={citationFormat}
+                    onChange={(e) => setCitationFormat(e.target.value as any)}
+                    className={styles.citationSelect}
+                  >
+                    <option value="none">None</option>
+                    <option value="apa">APA</option>
+                    <option value="mla">MLA</option>
+                    <option value="chicago">Chicago</option>
+                  </select>
+                </div>
+                <div className={styles.downloadButtons}>
+                  <button onClick={() => handleDownload("markdown")} className={styles.downloadBtn}>
+                    📝 Markdown
+                  </button>
+                  <button onClick={() => handleDownload("docx")} className={styles.downloadBtn}>
+                    📄 Word
+                  </button>
+                </div>
               </div>
             </div>
 

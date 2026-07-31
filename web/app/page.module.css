@@ -144,7 +144,7 @@
 .header2 {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 20px;
   flex-wrap: wrap;
   gap: 20px;
@@ -154,6 +154,47 @@
   color: #333;
   font-size: 1.8em;
   margin: 0;
+  flex: 1;
+}
+
+.downloadSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.citationFormat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95em;
+}
+
+.citationFormat label {
+  font-weight: 600;
+  color: #666;
+}
+
+.citationSelect {
+  padding: 6px 10px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 0.95em;
+  cursor: pointer;
+  background: white;
+  color: #333;
+  transition: border-color 0.2s;
+}
+
+.citationSelect:hover {
+  border-color: #667eea;
+}
+
+.citationSelect:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .downloadButtons {
