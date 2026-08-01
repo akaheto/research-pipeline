@@ -41,21 +41,16 @@ export async function POST(request: NextRequest) {
           throw new Error("PERPLEXITY_API_KEY environment variable not set in Vercel");
         }
 
-        console.log("Calling Perplexity API for topic:", body.topic);
+        const startTime = Date.now();
+        console.log("[RESEARCH] Starting research for topic:", body.topic);
+        console.log("[RESEARCH] Request params:", { max_results: body.max_results, apiKeySet: !!apiKey });
 
-        // Call Perplexity API (correct endpoint with /v1/)
-        const response = await fetch("https://api.perplexity.ai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "pplx-70b-online",
-            messages: [
-              {
-                role: "system",
-                content: `You are a research assistant. Research the query thoroughly and provide findings as a JSON array.
+        const requestPayload = {
+          model: "pplx-70b-online",
+          messages: [
+            {
+              role: "system",
+              content: `You are a research assistant. Research the query thoroughly and provide findings as a JSON array.
 Each finding should have:
 - text: The research finding or insight (2-3 sentences)
 - source_url: URL where found
@@ -65,33 +60,67 @@ Each finding should have:
 - credibility: 0.0-1.0 credibility score
 
 Return ONLY valid JSON array, no markdown. Limit to ${body.max_results || 20} findings.`,
-              },
-              {
-                role: "user",
-                content: `Research this topic: ${body.topic}`,
-              },
-            ],
-            max_tokens: 2000,
-          }),
+            },
+            {
+              role: "user",
+              content: `Research this topic: ${body.topic}`,
+            },
+          ],
+          max_tokens: 2000,
+        };
+
+        console.log("[RESEARCH] Calling Perplexity API...");
+        console.log("[RESEARCH] Endpoint: https://api.perplexity.ai/v1/chat/completions");
+        console.log("[RESEARCH] Request payload size:", JSON.stringify(requestPayload).length, "bytes");
+
+        const response = await fetch("https://api.perplexity.ai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestPayload),
+        });
+
+        const apiCallTime = Date.now() - startTime;
+        console.log("[RESEARCH] API response received in", apiCallTime, "ms");
+        console.log("[RESEARCH] Status:", response.status, response.statusText);
+        console.log("[RESEARCH] Response headers:", {
+          contentType: response.headers.get("content-type"),
+          contentLength: response.headers.get("content-length"),
         });
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`Perplexity API error ${response.status}:`, errorText);
-          throw new Error(`Perplexity API error: ${response.status} - Check API key and endpoint`);
+          console.error("[RESEARCH] API Error Response:", errorText.substring(0, 500));
+          console.error("[RESEARCH] Full error details:", {
+            status: response.status,
+            statusText: response.statusText,
+            errorLength: errorText.length,
+          });
+          throw new Error(`Perplexity API error ${response.status}: ${errorText.substring(0, 200)}`);
         }
 
         const data = await response.json();
+        console.log("[RESEARCH] Response JSON parsed successfully");
+        console.log("[RESEARCH] Message content length:", data.choices?.[0]?.message?.content?.length || 0);
+
         const responseText = data.choices?.[0]?.message?.content || "";
 
         // Parse JSON from response
         let findings = [];
         try {
+          console.log("[RESEARCH] Attempting to parse findings JSON...");
           findings = JSON.parse(responseText);
-          if (!Array.isArray(findings)) findings = [findings];
+          if (!Array.isArray(findings)) {
+            console.log("[RESEARCH] Response is not array, wrapping it");
+            findings = [findings];
+          }
+          console.log("[RESEARCH] Successfully parsed", findings.length, "findings");
         } catch (e) {
-          console.error("Failed to parse Perplexity response:", e);
-          throw new Error("Invalid response format from research API");
+          console.error("[RESEARCH] JSON parse failed:", e);
+          console.error("[RESEARCH] Response text preview:", responseText.substring(0, 300));
+          throw new Error(`Invalid JSON response from Perplexity: ${e instanceof Error ? e.message : String(e)}`);
         }
 
         // Stage 2: Processing
@@ -135,13 +164,19 @@ Return ONLY valid JSON array, no markdown. Limit to ${body.max_results || 20} fi
           created_at: new Date().toISOString(),
         };
 
+        console.log("[RESEARCH] Research complete. Sending results.");
+        console.log("[RESEARCH] Total findings:", processedFindings.length);
         sse.send("complete", result);
         controller.close();
       } catch (error) {
-        console.error("Research streaming error:", error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error("[RESEARCH] Error during research:", errorMsg);
+        if (error instanceof Error) {
+          console.error("[RESEARCH] Error stack:", error.stack);
+        }
         const sse = createSSEResponse(encoder, controller);
         sse.send("error", {
-          message: error instanceof Error ? error.message : "Research failed",
+          message: errorMsg,
         });
         controller.close();
       }
