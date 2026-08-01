@@ -37,6 +37,12 @@
   padding: 20px;
   border-radius: 12px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  align-items: center;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 8px;
 }
 
 .input {
@@ -234,6 +240,126 @@
 .summary p {
   color: #666;
   line-height: 1.6;
+}
+
+.summaryContent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.costBreakdown {
+  background: #f0f7ff;
+  border: 2px solid #e3f2fd;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.costBreakdown h4 {
+  margin: 0 0 12px 0;
+  color: #1976d2;
+  font-size: 14px;
+}
+
+.costDetails {
+  font-size: 13px;
+  color: #555;
+}
+
+.costRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.costAmount {
+  font-weight: 600;
+  color: #1976d2;
+}
+
+.costMeta {
+  font-size: 12px;
+  color: #999;
+  padding: 4px 0 8px 0;
+}
+
+.costSection {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.costSection strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+.costTotal {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 2px solid #1976d2;
+  color: #1976d2;
+  font-weight: 600;
+}
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.historyItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.historyItem:hover {
+  background: #efefef;
+  border-color: #667eea;
+}
+
+.historyItemContent {
+  flex: 1;
+}
+
+.historyItemContent h4 {
+  margin: 0 0 4px 0;
+  color: #333;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.historyMeta {
+  margin: 0;
+  color: #999;
+  font-size: 12px;
+}
+
+.deleteButton {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.deleteButton:hover {
+  background: #ffebee;
+  color: #d32f2f;
 }
 
 .insights {
@@ -754,4 +880,87 @@
   .historyDate {
     margin: 0;
   }
+}
+
+.tableContainer {
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  overflow-x: auto;
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+}
+
+.tableLine {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 4px 0;
+  line-height: 1.6;
+  color: #333;
+}
+
+.tableCaption {
+  margin: 12px 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.6;
+  color: #555;
+}
+
+.frameworksGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.frameworkCard {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 2px solid transparent;
+  min-height: 200px;
+}
+
+.frameworkCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.frameworkIcon {
+  font-size: 2.5em;
+  line-height: 1;
+}
+
+.frameworkCard h4 {
+  margin: 0;
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.frameworkCard p {
+  margin: 0;
+  font-size: 0.9em;
+  opacity: 0.95;
+  flex: 1;
+  line-height: 1.5;
+}
+
+.frameworkQueries {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.frameworkQueries small {
+  opacity: 0.85;
+  font-size: 0.85em;
 }

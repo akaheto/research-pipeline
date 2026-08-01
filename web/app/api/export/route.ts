@@ -21,36 +21,31 @@ function formatCitation(finding: any, format: CitationFormat): string {
 }
 
 function generateMarkdown(result: any, citationFormat: CitationFormat = "none"): string {
-  let md = `# Research Report: ${result.topic}\n\n`;
-  md += `**Generated:** ${new Date().toLocaleString()}\n`;
-  md += `**Findings:** ${result.findings.length}\n`;
-  if (citationFormat !== "none") {
-    md += `**Citation Format:** ${citationFormat.toUpperCase()}\n`;
-  }
-  md += `\n`;
+  let md = `# ${result.topic}\n\n`;
+  md += `**Generated:** ${new Date().toLocaleString()}\n\n`;
 
-  if (result.summary) {
+  // For hybrid method, summary is the full formatted analysis
+  if (result.method === "perplexity-claude" && result.summary) {
+    md += result.summary + "\n\n";
+  } else if (result.summary) {
+    // For perplexity-only, show summary then findings
     md += `## Summary\n\n${result.summary}\n\n`;
+    md += `## Key Findings\n\n`;
+    result.findings.forEach((finding: any, i: number) => {
+      md += `### ${i + 1}. Finding\n\n${finding.text}\n\n`;
+      md += `- **Source:** [${finding.source.title}](${finding.source.url})\n`;
+      md += `- **Domain:** ${finding.source.domain}\n\n`;
+    });
   }
-
-  md += `## Key Findings\n\n`;
-  result.findings.forEach((finding: any, i: number) => {
-    md += `### ${i + 1}. ${finding.text.substring(0, 80)}...\n\n`;
-    md += `- **Source:** [${finding.source.title}](${finding.source.url})\n`;
-    md += `- **Domain:** ${finding.source.domain}\n`;
-    md += `- **Relevance:** ${(finding.scores.relevance * 100).toFixed(0)}%\n`;
-    md += `- **Credibility:** ${(finding.scores.credibility * 100).toFixed(0)}%\n`;
-    md += `- **Recency:** ${(finding.scores.recency * 100).toFixed(0)}%\n`;
-    md += `- **Combined Score:** ${(finding.scores.combined * 100).toFixed(0)}%\n\n`;
-  });
 
   if (citationFormat !== "none") {
     md += `## References\n\n`;
     result.findings.forEach((finding: any, i: number) => {
       md += `${i + 1}. ${formatCitation(finding, citationFormat)}\n\n`;
     });
-  } else {
-    md += `## All Sources\n\n`;
+  } else if (result.findings.length > 0 && result.findings[0].source.domain !== "anthropic.com") {
+    // Only show sources section for perplexity-only (anthropic.com is placeholder for hybrid)
+    md += `## Sources\n\n`;
     result.findings.forEach((finding: any, i: number) => {
       md += `${i + 1}. [${finding.source.title}](${finding.source.url})\n`;
       md += `   - Retrieved: ${new Date(finding.source.retrieved_at).toLocaleString()}\n\n`;
@@ -62,35 +57,29 @@ function generateMarkdown(result: any, citationFormat: CitationFormat = "none"):
 }
 
 function generateWord(result: any, citationFormat: CitationFormat = "none"): string {
-  let text = `RESEARCH REPORT: ${result.topic}\n\n`;
-  text += `Generated: ${new Date().toLocaleString()}\n`;
-  text += `Findings: ${result.findings.length}\n`;
-  if (citationFormat !== "none") {
-    text += `Citation Format: ${citationFormat.toUpperCase()}\n`;
-  }
-  text += `\n`;
+  let text = `${result.topic.toUpperCase()}\n\n`;
+  text += `Generated: ${new Date().toLocaleString()}\n\n`;
 
-  if (result.summary) {
+  // For hybrid method, summary is the full formatted analysis
+  if (result.method === "perplexity-claude" && result.summary) {
+    text += result.summary + "\n\n";
+  } else if (result.summary) {
+    // For perplexity-only, show summary then findings
     text += `SUMMARY\n${result.summary}\n\n`;
+    text += `KEY FINDINGS\n`;
+    result.findings.forEach((finding: any, i: number) => {
+      text += `\n${i + 1}. ${finding.text}\n`;
+      text += `Source: ${finding.source.title} (${finding.source.domain})\n`;
+      text += `URL: ${finding.source.url}\n`;
+    });
   }
-
-  text += `KEY FINDINGS\n`;
-  result.findings.forEach((finding: any, i: number) => {
-    text += `\n${i + 1}. ${finding.text}\n`;
-    text += `Source: ${finding.source.title} (${finding.source.domain})\n`;
-    text += `URL: ${finding.source.url}\n`;
-    text += `Scores: Relevance ${(finding.scores.relevance * 100).toFixed(0)}% | `;
-    text += `Credibility ${(finding.scores.credibility * 100).toFixed(0)}% | `;
-    text += `Recency ${(finding.scores.recency * 100).toFixed(0)}% | `;
-    text += `Combined ${(finding.scores.combined * 100).toFixed(0)}%\n`;
-  });
 
   if (citationFormat !== "none") {
     text += `\nREFERENCES\n`;
     result.findings.forEach((finding: any, i: number) => {
       text += `${i + 1}. ${formatCitation(finding, citationFormat)}\n\n`;
     });
-  } else {
+  } else if (result.findings.length > 0 && result.findings[0].source.domain !== "anthropic.com") {
     text += `\nSOURCES\n`;
     result.findings.forEach((finding: any, i: number) => {
       text += `${i + 1}. ${finding.source.title}\n   URL: ${finding.source.url}\n`;
@@ -102,6 +91,38 @@ function generateWord(result: any, citationFormat: CitationFormat = "none"): str
 
 function generatePdf(result: any, citationFormat: CitationFormat = "none"): string {
   // Generate HTML that will be converted to PDF on the client
+  let findingsHtml = "";
+
+  if (result.method === "perplexity-claude" && result.summary) {
+    // For hybrid: render summary as formatted markdown/HTML
+    findingsHtml = result.summary
+      .replace(/^# /gm, "<h1>")
+      .replace(/\n$/gm, "</h1>")
+      .replace(/^## /gm, "<h2>")
+      .replace(/\n$/gm, "</h2>")
+      .replace(/^### /gm, "<h3>")
+      .replace(/\n$/gm, "</h3>")
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.*?)\*/g, "<em>$1</em>")
+      .replace(/\n\n/g, "</p><p>")
+      .replace(/^\s*[-*]\s+/gm, "<li>")
+      .replace(/\n/g, "</li><li>");
+  } else {
+    // For perplexity-only: show each finding
+    findingsHtml = result.findings
+      .map(
+        (finding: any, i: number) => `
+      <div class="finding">
+        <h3>${i + 1}. Finding</h3>
+        <p>${finding.text}</p>
+        <p><strong>Source:</strong> <a class="source" href="${finding.source.url}">${finding.source.title}</a></p>
+        <p><strong>Domain:</strong> ${finding.source.domain}</p>
+      </div>
+    `
+      )
+      .join("");
+  }
+
   let html = `
     <!DOCTYPE html>
     <html>
@@ -110,44 +131,25 @@ function generatePdf(result: any, citationFormat: CitationFormat = "none"): stri
       <title>${result.topic} - Research Report</title>
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 850px; margin: 0 auto; padding: 20px; }
-        h1 { color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
-        h2 { color: #764ba2; margin-top: 30px; }
-        h3 { color: #333; }
+        h1 { color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 10px; margin-top: 30px; }
+        h2 { color: #764ba2; margin-top: 25px; }
+        h3 { color: #555; }
         .meta { background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 20px; font-size: 0.95em; }
         .finding { background: #fafafa; padding: 15px; border-left: 4px solid #667eea; margin: 15px 0; }
-        .scores { font-size: 0.9em; color: #666; }
         .source { color: #667eea; text-decoration: none; font-weight: 600; }
         .citation { margin: 10px 0; font-size: 0.95em; line-height: 1.5; }
         .page-break { page-break-after: always; }
+        p { margin: 10px 0; }
       </style>
     </head>
     <body>
-      <h1>Research Report: ${result.topic}</h1>
+      <h1>${result.topic}</h1>
       <div class="meta">
         <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
-        <p><strong>Findings:</strong> ${result.findings.length}</p>
         ${citationFormat !== "none" ? `<p><strong>Citation Format:</strong> ${citationFormat.toUpperCase()}</p>` : ""}
       </div>
-      ${result.summary ? `<h2>Summary</h2><p>${result.summary}</p>` : ""}
-      <h2>Key Findings</h2>
-      ${result.findings
-        .map(
-          (finding: any, i: number) => `
-        <div class="finding">
-          <h3>${i + 1}. ${finding.text.substring(0, 100)}</h3>
-          <p><strong>Source:</strong> <a class="source" href="${finding.source.url}">${finding.source.title}</a></p>
-          <p><strong>Domain:</strong> ${finding.source.domain}</p>
-          <div class="scores">
-            <p>Relevance: ${(finding.scores.relevance * 100).toFixed(0)}% |
-               Credibility: ${(finding.scores.credibility * 100).toFixed(0)}% |
-               Recency: ${(finding.scores.recency * 100).toFixed(0)}% |
-               Combined: ${(finding.scores.combined * 100).toFixed(0)}%</p>
-          </div>
-        </div>
-      `
-        )
-        .join("")}
-      ${citationFormat !== "none" ? `<div class="page-break"></div><h2>References</h2>${result.findings.map((finding: any, i: number) => `<div class="citation">${i + 1}. ${formatCitation(finding, citationFormat)}</div>`).join("")}` : ""}
+      ${findingsHtml}
+      ${citationFormat !== "none" && result.findings.length > 0 ? `<div class="page-break"></div><h2>References</h2>${result.findings.map((finding: any, i: number) => `<div class="citation">${i + 1}. ${formatCitation(finding, citationFormat)}</div>`).join("")}` : ""}
     </body>
     </html>
   `;

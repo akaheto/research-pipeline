@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import styles from "./page.module.css";
 import { getSearchAnalytics, getTimeAgo } from "@/lib/analytics";
 import { deduplicateFindings } from "@/lib/deduplication";
+import { frameworks } from "@/lib/frameworks";
 
 interface Finding {
   text: string;
@@ -25,6 +26,9 @@ interface Research {
   topic: string;
   findings: Finding[];
   summary: string;
+  method?: "perplexity-only" | "perplexity-claude";
+  cost?: any;
+  created_at?: string;
 }
 
 interface SearchHistory {
@@ -53,6 +57,46 @@ export default function Home() {
   const [showGrouped, setShowGrouped] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
   const [error, setError] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+  const [supabaseHistory, setSupabaseHistory] = useState<any[]>([]);
+  const [matrixView, setMatrixView] = useState(true);
+  const [showFrameworks, setShowFrameworks] = useState(false);
+
+  // Load history from Supabase on mount
+  useEffect(() => {
+    fetchSupabaseHistory();
+  }, []);
+
+  const fetchSupabaseHistory = async () => {
+    try {
+      const res = await fetch("/api/research-history/get");
+      if (res.ok) {
+        const data = await res.json();
+        setSupabaseHistory(data);
+      }
+    } catch (e) {
+      console.log("Failed to load history");
+    }
+  };
+
+  const deleteFromHistory = async (id: string) => {
+    try {
+      const res = await fetch(`/api/research-history/delete?id=${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setSupabaseHistory(supabaseHistory.filter((item) => item.id !== id));
+      }
+    } catch (e) {
+      console.log("Failed to delete");
+    }
+  };
+
+  const loadFromHistory = (item: any) => {
+    setTopic(item.topic);
+    setResult(item);
+    setShowHistory(false);
+  };
 
   // Load history from localStorage
   useEffect(() => {
@@ -65,7 +109,7 @@ export default function Home() {
     localStorage.setItem("researchHistory", JSON.stringify(history));
   }, [history]);
 
-  const handleSearch = async (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent, researchMethod: "perplexity-only" | "perplexity-claude" = "perplexity-claude") => {
     e.preventDefault();
     if (!topic.trim()) return;
 
@@ -80,6 +124,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           topic,
+          researchMethod,
           max_results: maxResults,
           similarity_threshold: similarity,
           min_score: minScore,
@@ -144,6 +189,75 @@ export default function Home() {
     setTopic(entry.topic);
   };
 
+  const handleRunFramework = async (frameworkId: string) => {
+    if (!topic.trim()) return;
+
+    setLoading(true);
+    setProgress("");
+    setError("");
+    setResult(null);
+    setShowFrameworks(false);
+
+    try {
+      const response = await fetch("/api/frameworks/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, frameworkId }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Framework execution failed");
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("Response body is empty");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            const eventType = line.slice(7);
+            const dataLine = lines[lines.indexOf(line) + 1];
+
+            if (dataLine?.startsWith("data: ")) {
+              const data = JSON.parse(dataLine.slice(6));
+
+              if (eventType === "progress") {
+                setProgress(data.message);
+              } else if (eventType === "complete") {
+                setResult(data);
+                const newEntry: SearchHistory = {
+                  id: Date.now().toString(),
+                  topic,
+                  timestamp: Date.now(),
+                  findingsCount: data.findings.length,
+                  data,
+                };
+                setHistory([newEntry, ...history.slice(0, 19)]);
+              } else if (eventType === "error") {
+                setError(data.message);
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+      setProgress("");
+    }
+  };
+
   const loadDebugInfo = async () => {
     setDebugLoading(true);
     try {
@@ -200,7 +314,7 @@ export default function Home() {
 
       <main className={styles.main}>
         {/* Search Form */}
-        <form onSubmit={handleSearch} className={styles.searchForm}>
+        <form onSubmit={(e) => handleSearch(e, "perplexity-claude")} className={styles.searchForm}>
           <input
             type="text"
             value={topic}
@@ -209,13 +323,34 @@ export default function Home() {
             className={styles.input}
             disabled={loading}
           />
-          <button
-            type="submit"
-            className={styles.button}
-            disabled={loading || !topic.trim()}
-          >
-            {loading ? "Researching..." : "Search"}
-          </button>
+          <div className={styles.buttonGroup}>
+            <button
+              type="submit"
+              className={styles.button}
+              disabled={loading || !topic.trim()}
+              title="Perplexity researches, Claude evaluates and synthesizes"
+            >
+              {loading ? "Researching..." : "🔬 Perplexity + Claude"}
+            </button>
+            <button
+              type="button"
+              className={styles.button}
+              disabled={loading || !topic.trim()}
+              onClick={(e) => handleSearch(e as any, "perplexity-only")}
+              title="Use Perplexity's native research format directly"
+            >
+              {loading ? "Researching..." : "📰 Perplexity Only"}
+            </button>
+            <button
+              type="button"
+              className={styles.button}
+              disabled={loading || !topic.trim()}
+              onClick={() => setShowFrameworks(true)}
+              title="Run a research framework with multiple focused searches"
+            >
+              {loading ? "Researching..." : "🎯 Frameworks"}
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => setShowSettings(!showSettings)}
@@ -241,6 +376,17 @@ export default function Home() {
             title="Debug Info"
           >
             🔧
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowHistory(!showHistory);
+              if (!showHistory) fetchSupabaseHistory();
+            }}
+            className={styles.settingsButton}
+            title="Research History"
+          >
+            📚
           </button>
         </form>
 
@@ -387,6 +533,83 @@ export default function Home() {
           </div>
         )}
 
+        {/* History Panel */}
+        {showHistory && (
+          <div className={styles.modal}>
+            <div className={styles.modalContent}>
+              <div className={styles.modalHeader}>
+                <h3>📚 Research History</h3>
+                <button onClick={() => setShowHistory(false)} className={styles.modalClose}>
+                  ✕
+                </button>
+              </div>
+
+              {supabaseHistory.length === 0 ? (
+                <p className={styles.emptyState}>No saved research yet</p>
+              ) : (
+                <div className={styles.historyList}>
+                  {supabaseHistory.map((item) => (
+                    <div
+                      key={item.id}
+                      className={styles.historyItem}
+                      onClick={() => loadFromHistory(item)}
+                    >
+                      <div className={styles.historyItemContent}>
+                        <h4>{item.topic}</h4>
+                        <p className={styles.historyMeta}>
+                          {item.method === "perplexity-claude" ? "🔬 P+C" : "📰 P"} •{" "}
+                          {new Date(item.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        className={styles.deleteButton}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteFromHistory(item.id);
+                        }}
+                        title="Delete"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Frameworks Modal */}
+        {showFrameworks && (
+          <div className={styles.modal}>
+            <div className={styles.modalContent}>
+              <div className={styles.modalHeader}>
+                <h3>🎯 Research Frameworks</h3>
+                <button onClick={() => setShowFrameworks(false)} className={styles.modalClose}>
+                  ✕
+                </button>
+              </div>
+
+              <div className={styles.frameworksGrid}>
+                {frameworks.map((fw) => (
+                  <div
+                    key={fw.id}
+                    className={styles.frameworkCard}
+                    onClick={() => handleRunFramework(fw.id)}
+                  >
+                    <div className={styles.frameworkIcon}>{fw.icon}</div>
+                    <h4>{fw.name}</h4>
+                    <p>{fw.description}</p>
+                    <div className={styles.frameworkQueries}>
+                      <small>{fw.queries.length} focused searches</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Debug Modal */}
         {showDebug && (
           <div className={styles.modal}>
@@ -490,6 +713,15 @@ export default function Home() {
           <div className={styles.results}>
             <div className={styles.header2}>
               <h2>{result.topic}</h2>
+              {result.method === "perplexity-only" && (
+                <button
+                  onClick={() => setMatrixView(!matrixView)}
+                  className={styles.toggleButton}
+                  title="Toggle between table and prose view"
+                >
+                  {matrixView ? "📝 Prose View" : "📊 Matrix View"}
+                </button>
+              )}
               <div className={styles.downloadSection}>
                 <div className={styles.citationFormat}>
                   <label htmlFor="citation">Citations:</label>
@@ -519,10 +751,108 @@ export default function Home() {
               </div>
             </div>
 
-            {result.summary && (
+            {/* Cost Breakdown */}
+            {result.cost && (
+              <div className={styles.costBreakdown}>
+                <h4>📊 Research Cost</h4>
+                <div className={styles.costDetails}>
+                  {result.method === "framework-synthesis" ? (
+                    <div>
+                      <div className={styles.costSection}>
+                        <strong>Perplexity Searches:</strong>
+                        <div className={styles.costRow}>
+                          <span>Multiple focused queries</span>
+                          <span className={styles.costAmount}>{result.cost.perplexity_cost}</span>
+                        </div>
+                      </div>
+                      <div className={styles.costSection}>
+                        <strong>Claude Synthesis:</strong>
+                        <div className={styles.costRow}>
+                          <span>Framework synthesis & organization</span>
+                          <span className={styles.costAmount}>{result.cost.claude_cost}</span>
+                        </div>
+                      </div>
+                      <div className={styles.costTotal}>
+                        <strong>Total: {result.cost.total_estimated_cost}</strong>
+                      </div>
+                    </div>
+                  ) : result.method === "perplexity-only" ? (
+                    <div>
+                      <div className={styles.costRow}>
+                        <span>Model: {result.cost.model}</span>
+                        <span className={styles.costAmount}>{result.cost.estimated_cost}</span>
+                      </div>
+                      <div className={styles.costMeta}>
+                        {result.cost.prompt_tokens} in | {result.cost.completion_tokens} out
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className={styles.costSection}>
+                        <strong>Perplexity:</strong>
+                        <div className={styles.costRow}>
+                          <span>{result.cost.perplexity.model}</span>
+                          <span className={styles.costAmount}>{result.cost.perplexity.estimated_cost}</span>
+                        </div>
+                        <div className={styles.costMeta}>
+                          {result.cost.perplexity.prompt_tokens} in | {result.cost.perplexity.completion_tokens} out
+                        </div>
+                      </div>
+                      <div className={styles.costSection}>
+                        <strong>Claude:</strong>
+                        <div className={styles.costRow}>
+                          <span>{result.cost.claude.model}</span>
+                          <span className={styles.costAmount}>{result.cost.claude.estimated_cost}</span>
+                        </div>
+                        <div className={styles.costMeta}>
+                          {result.cost.claude.input_tokens} in | {result.cost.claude.output_tokens} out
+                        </div>
+                      </div>
+                      <div className={styles.costTotal}>
+                        <strong>Total: {result.cost.total_estimated_cost}</strong>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {result.synthesis ? (
               <div className={styles.summary}>
-                <h3>Summary</h3>
-                <p>{result.summary}</p>
+                <h3>Framework Synthesis</h3>
+                <div className={styles.summaryContent}>
+                  {result.synthesis.split('\n').map((para, i) => (
+                    para.trim() && <p key={i}>{para}</p>
+                  ))}
+                </div>
+              </div>
+            ) : result.summary && (
+              <div className={styles.summary}>
+                {matrixView && result.summary.includes('|') ? (
+                  <div>
+                    <h3>Comparison Matrix</h3>
+                    <div className={styles.tableContainer}>
+                      {result.summary.split('\n').map((line, i) =>
+                        line.includes('|') ? (
+                          <div key={i} className={styles.tableLine}>
+                            {line}
+                          </div>
+                        ) : line.trim() ? (
+                          <p key={i} className={styles.tableCaption}>{line}</p>
+                        ) : null
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <h3>Comprehensive Assessment</h3>
+                    <div className={styles.summaryContent}>
+                      {result.summary.split('\n').map((para, i) => (
+                        para.trim() && <p key={i}>{para}</p>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

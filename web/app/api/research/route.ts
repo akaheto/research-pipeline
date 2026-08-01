@@ -1,5 +1,18 @@
 import { NextRequest } from "next/server";
 
+// Detect if query is a comparison/ranking type
+function isComparisonQuery(topic: string): boolean {
+  const comparisonKeywords = [
+    "compare", "vs", "versus", "which is better", "difference between",
+    "ranking", "best", "top", "worst", "review", "pros and cons",
+    "side by side", "versus", "head to head", "comparison",
+    "advantages and disadvantages", "strengths and weaknesses"
+  ];
+
+  const lowerTopic = topic.toLowerCase();
+  return comparisonKeywords.some(keyword => lowerTopic.includes(keyword));
+}
+
 function createSSEResponse(encoder: TextEncoder, controller: ReadableStreamDefaultController) {
   return {
     send: (event: string, data: unknown) => {
@@ -7,6 +20,176 @@ function createSSEResponse(encoder: TextEncoder, controller: ReadableStreamDefau
       controller.enqueue(encoder.encode(message));
     },
   };
+}
+
+async function callPerplexity(topic: string, apiKey: string) {
+  console.log("[RESEARCH] Calling Perplexity API...");
+
+  const isComparison = isComparisonQuery(topic);
+
+  const payload = {
+    model: "sonar",
+    messages: [
+      {
+        role: "user",
+        content: isComparison
+          ? `Research and provide a side-by-side comparison of: ${topic}
+
+CRITICAL: Return this ONLY as a structured markdown table with these columns:
+| Item | Best for | Strengths | Weaknesses | Key takeaway |
+
+After the table, add:
+1. Brief summary (2-3 sentences)
+2. "Which to choose" decision guide with clear recommendations
+3. Inline citations [source](url) throughout
+
+Make the table comprehensive and comparable across rows.`
+          : `Research and provide a comprehensive response about: ${topic}
+
+Format your response clearly with:
+- A concise opening summary
+- Key findings or main points
+- Direct answers to the core question
+- Inline citations [source name](url) after factual claims
+- Actionable takeaways when relevant`,
+      },
+    ],
+    max_tokens: 2000,
+  };
+
+  const response = await fetch("https://api.perplexity.ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Perplexity API error ${response.status}: ${errorText.substring(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || "";
+
+  return {
+    content,
+    usage: data.usage,
+  };
+}
+
+async function callClaude(perplexityContent: string, topic: string, claudeApiKey: string) {
+  console.log("[RESEARCH] Calling Claude API for synthesis...");
+
+  const payload = {
+    model: "claude-opus-4-1",
+    max_tokens: 3000,
+    messages: [
+      {
+        role: "user",
+        content: `Synthesize and enhance the following research about "${topic}" following these principles:
+
+STRUCTURE (PRESERVE ALL OF THESE):
+- Keep all tables, comparison matrices, and structured data exactly as-is
+- Preserve all bullet points and numbered lists
+- Do not remove or reformat any existing comparison sections
+
+ENHANCEMENT (ADD ONLY THIS):
+1. Lead with a 1-2 paragraph synthesis that connects key findings
+2. Add brief analytical transitions between existing sections (1-2 sentences)
+3. Enhance existing pros/cons, not replace them
+4. Add "Key Takeaway" summary at end (2-3 sentences)
+5. Include inline citations [Source Name](URL) immediately after new claims
+
+TONE & FORMAT:
+- Professional and analytical
+- Concise headers (under 6 words)
+- Only synthesize explanatory prose - do not restructure existing content
+
+Research content to enhance:
+${perplexityContent}
+
+Produce the enhanced analysis:`,
+      },
+    ],
+  };
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": claudeApiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Claude API error ${response.status}: ${errorText.substring(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const content = data.content?.[0]?.text || "";
+
+  return {
+    content,
+    usage: data.usage,
+  };
+}
+
+function parsePerplexityOnly(content: string): { summary: string; findings: any[] } {
+  // For Perplexity Only, format the raw response into our standard format
+  // Extract key sections and citations
+  const summaryMatch = content.match(/^([\s\S]{100,500}?)(?=\n\n|$)/);
+  const summary = summaryMatch ? summaryMatch[1].trim() : content.substring(0, 300);
+
+  // Create a single finding from the entire content
+  const finding = {
+    text: content,
+    source: {
+      url: "https://www.perplexity.ai",
+      title: "Perplexity Research",
+      domain: "perplexity.ai",
+      retrieved_at: new Date().toISOString(),
+    },
+    scores: {
+      relevance: 1.0,
+      credibility: 0.95,
+      recency: 0.9,
+      combined: 0.95,
+    },
+  };
+
+  return { summary, findings: [finding] };
+}
+
+function parseClaudeFormatted(claudeContent: string): { summary: string; findings: any[] } {
+  // Claude already formatted it, so extract the components
+  // Try to find assessment and sections
+  const assessmentMatch = claudeContent.match(/^([\s\S]*?)(?=###|##|\n##|$)/);
+  const summary = assessmentMatch ? assessmentMatch[1].trim() : claudeContent.substring(0, 500);
+
+  // Create a finding from the full formatted response
+  const finding = {
+    text: claudeContent,
+    source: {
+      url: "https://www.anthropic.com",
+      title: "Claude Analysis",
+      domain: "anthropic.com",
+      retrieved_at: new Date().toISOString(),
+    },
+    scores: {
+      relevance: 1.0,
+      credibility: 0.98,
+      recency: 0.95,
+      combined: 0.98,
+    },
+  };
+
+  return { summary, findings: [finding] };
 }
 
 export async function POST(request: NextRequest) {
@@ -20,6 +203,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    let researchMethod = body.researchMethod || "perplexity-claude";
+
+    // Auto-detect and override method for comparison queries
+    const isComparison = isComparisonQuery(body.topic);
+    if (isComparison && researchMethod !== "perplexity-only") {
+      console.log("[RESEARCH] Query detected as comparison - auto-routing to Perplexity Only");
+      researchMethod = "perplexity-only";
+    }
+
     const encoder = new TextEncoder();
     let controller: ReadableStreamDefaultController;
 
@@ -30,211 +222,162 @@ export async function POST(request: NextRequest) {
     });
 
     (async () => {
+      const sse = createSSEResponse(encoder, controller);
       try {
-        const sse = createSSEResponse(encoder, controller);
 
         // Stage 1: Searching
         sse.send("progress", { stage: "searching", message: "🔍 Searching the web..." });
 
-        const apiKey = process.env.PERPLEXITY_API_KEY;
-        if (!apiKey) {
-          throw new Error("PERPLEXITY_API_KEY environment variable not set in Vercel");
+        const perplexityKey = process.env.PERPLEXITY_API_KEY;
+        if (!perplexityKey) {
+          throw new Error("PERPLEXITY_API_KEY not set");
         }
 
         const startTime = Date.now();
-        console.log("[RESEARCH] Starting research for topic:", body.topic);
-        console.log("[RESEARCH] Request params:", { max_results: body.max_results, apiKeySet: !!apiKey });
+        console.log("[RESEARCH] Method:", researchMethod);
+        console.log("[RESEARCH] Topic:", body.topic);
+        console.log("[RESEARCH] Is comparison query:", isComparison);
 
-        const requestPayload = {
-          model: "sonar",
-          messages: [
-            {
-              role: "system",
-              content: `You are a research assistant. Provide a comprehensive research summary for the given topic.
-Format your response as:
-SUMMARY: [2-3 sentence overview]
+        // Step 1: Call Perplexity
+        const perplexityResult = await callPerplexity(body.topic, perplexityKey);
+        const perplexityTime = Date.now() - startTime;
+        console.log("[RESEARCH] Perplexity API returned in", perplexityTime, "ms");
+        console.log("[RESEARCH] Perplexity usage:", perplexityResult.usage);
 
-KEY FINDINGS:
-1. [Finding text - 1-2 sentences]
-2. [Finding text - 1-2 sentences]
-3. [Finding text - 1-2 sentences]
-...and so on
+        let finalContent: string;
+        let claudeUsage: any = null;
+        let totalCost = 0;
 
-Be specific and provide factual information from multiple sources.`,
+        if (researchMethod === "perplexity-only") {
+          // Use Perplexity's response directly
+          sse.send("progress", { stage: "formatting", message: "📝 Formatting results..." });
+          finalContent = perplexityResult.content;
+          const parsed = parsePerplexityOnly(finalContent);
+
+          // Calculate Perplexity cost (estimate: $0.005 per 1K input, $0.015 per 1K output)
+          const perplexityCost =
+            (perplexityResult.usage.prompt_tokens * 0.005) / 1000 +
+            (perplexityResult.usage.completion_tokens * 0.015) / 1000;
+          totalCost = perplexityCost;
+
+          const result = {
+            topic: body.topic,
+            method: "perplexity-only",
+            summary: parsed.summary,
+            findings: parsed.findings,
+            created_at: new Date().toISOString(),
+            cost: {
+              model: "Perplexity (sonar)",
+              prompt_tokens: perplexityResult.usage.prompt_tokens,
+              completion_tokens: perplexityResult.usage.completion_tokens,
+              total_tokens: perplexityResult.usage.total_tokens,
+              estimated_cost: `$${perplexityCost.toFixed(4)}`,
             },
-            {
-              role: "user",
-              content: `Research this topic and provide ${body.max_results || 20} key findings: ${body.topic}`,
-            },
-          ],
-          max_tokens: 2000,
-        };
+          };
 
-        console.log("[RESEARCH] Calling Perplexity API...");
-        console.log("[RESEARCH] Endpoint: https://api.perplexity.ai/v1/chat/completions");
-        console.log("[RESEARCH] Request payload size:", JSON.stringify(requestPayload).length, "bytes");
-
-        const response = await fetch("https://api.perplexity.ai/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestPayload),
-        });
-
-        const apiCallTime = Date.now() - startTime;
-        console.log("[RESEARCH] API response received in", apiCallTime, "ms");
-        console.log("[RESEARCH] Status:", response.status, response.statusText);
-        console.log("[RESEARCH] Response headers:", {
-          contentType: response.headers.get("content-type"),
-          contentLength: response.headers.get("content-length"),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("[RESEARCH] API Error Response:", errorText.substring(0, 500));
-          console.error("[RESEARCH] Full error details:", {
-            status: response.status,
-            statusText: response.statusText,
-            errorLength: errorText.length,
-          });
-          throw new Error(`Perplexity API error ${response.status}: ${errorText.substring(0, 200)}`);
-        }
-
-        let data;
-        try {
-          data = await response.json();
-        } catch (jsonError) {
-          const rawText = await response.text();
-          console.error("[RESEARCH] Failed to parse API response as JSON");
-          console.error("[RESEARCH] Raw response preview:", rawText.substring(0, 500));
-          throw new Error(`API returned invalid JSON: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`);
-        }
-
-        console.log("[RESEARCH] Response JSON parsed successfully");
-        console.log("[RESEARCH] Message content length:", data.choices?.[0]?.message?.content?.length || 0);
-
-        const responseText = data.choices?.[0]?.message?.content || "";
-        if (!responseText) {
-          throw new Error("No content in API response");
-        }
-
-        // Parse plain text response
-        let findings = [];
-        try {
-          console.log("[RESEARCH] Parsing text response from Perplexity...");
-
-          // Extract summary
-          const summaryMatch = responseText.match(/SUMMARY:\s*(.+?)(?=KEY FINDINGS|$)/is);
-          const summary = summaryMatch ? summaryMatch[1].trim() : "";
-
-          // Extract findings - look for numbered list items
-          const findingsMatch = responseText.match(/KEY FINDINGS:([\s\S]*?)$/i);
-          const findingsText = findingsMatch ? findingsMatch[1] : responseText;
-
-          // Split by number patterns (1., 2., etc.)
-          const findingLines = findingsText.split(/\n(?=\d+\.)/);
-
-          findings = findingLines
-            .map((line: string) => {
-              // Remove numbering
-              let text = line.replace(/^\d+\.\s*/, "").trim();
-              if (!text) return null;
-
-              // Clean up markdown formatting
-              text = text.replace(/\*\*/g, ""); // Remove bold
-              text = text.replace(/\[(\d+)\]/g, ""); // Remove citation numbers
-              text = text.replace(/#+\s/g, ""); // Remove headers
-              text = text.trim();
-
-              return {
-                text,
-                source: {
-                  url: "https://www.perplexity.ai",
-                  title: "Perplexity Research",
-                  domain: "perplexity.ai",
-                  retrieved_at: new Date().toISOString(),
-                },
-                scores: {
-                  relevance: 0.85,
-                  credibility: 0.9,
-                  recency: 0.88,
-                  combined: 0,
-                },
-              };
-            })
-            .filter((f: any) => f !== null && f.text.length > 10)
-            .slice(0, body.max_results || 20);
-
-          // Calculate combined scores
-          findings = findings.map((f: any) => ({
-            ...f,
-            scores: {
-              ...f.scores,
-              combined: f.scores.relevance * 0.5 + f.scores.credibility * 0.3 + f.scores.recency * 0.2,
-            },
-          }));
-
-          console.log("[RESEARCH] Successfully parsed", findings.length, "findings from text");
-        } catch (e) {
-          console.error("[RESEARCH] Text parse failed:", e);
-          console.error("[RESEARCH] Response preview:", responseText.substring(0, 300));
-          throw new Error(`Failed to parse Perplexity response: ${e instanceof Error ? e.message : String(e)}`);
-        }
-
-        // Stage 2: Processing
-        sse.send("progress", { stage: "processing", message: "⚙️ Processing findings..." });
-        await new Promise((r) => setTimeout(r, 600));
-
-        // Stage 3: Ranking
-        sse.send("progress", { stage: "ranking", message: "📊 Ranking by quality..." });
-        await new Promise((r) => setTimeout(r, 500));
-
-        // Generate a smart summary from findings
-        let summary = "";
-        if (findings.length > 0) {
-          const topFindings = findings.slice(0, 3);
-          const summaryPoints = topFindings
-            .map((f: any) => {
-              // Extract first sentence or key phrase
-              let point = f.text.split(".")[0].trim();
-              // Clean up markdown formatting
-              point = point.replace(/\*\*/g, "").replace(/\[.*?\]/g, "").trim();
-              return point;
-            })
-            .filter((p: string) => p.length > 10);
-
-          if (summaryPoints.length > 0) {
-            summary = `Key insights on "${body.topic}": ${summaryPoints.join("; ")}. Based on ${findings.length} research findings from real-time web sources.`;
+          // Save to Supabase
+          try {
+            await fetch(new URL("/api/research-history/save", request.url), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                topic: body.topic,
+                method: researchMethod,
+                summary: result.summary,
+                findings: result.findings,
+                cost: result.cost,
+              }),
+            });
+          } catch (e) {
+            console.log("[RESEARCH] Supabase save error (non-critical)");
           }
+
+          sse.send("complete", result);
+        } else {
+          // perplexity-claude: Use Perplexity research + Claude synthesis
+          sse.send("progress", { stage: "synthesizing", message: "🧠 Synthesizing with Claude..." });
+
+          const claudeKey = process.env.ANTHROPIC_API_KEY;
+          if (!claudeKey) {
+            throw new Error("ANTHROPIC_API_KEY not set");
+          }
+
+          const claudeStart = Date.now();
+          const claudeResult = await callClaude(
+            perplexityResult.content,
+            body.topic,
+            claudeKey
+          );
+          const claudeTime = Date.now() - claudeStart;
+          console.log("[RESEARCH] Claude API returned in", claudeTime, "ms");
+          console.log("[RESEARCH] Claude usage:", claudeResult.usage);
+
+          finalContent = claudeResult.content;
+          claudeUsage = claudeResult.usage;
+
+          // Calculate costs
+          // Perplexity: $0.005 per 1K input, $0.015 per 1K output
+          const perplexityCost =
+            (perplexityResult.usage.prompt_tokens * 0.005) / 1000 +
+            (perplexityResult.usage.completion_tokens * 0.015) / 1000;
+
+          // Claude Opus 4.1: $3 per 1M input, $15 per 1M output
+          const claudeCost =
+            (claudeUsage.input_tokens * 3) / 1000000 +
+            (claudeUsage.output_tokens * 15) / 1000000;
+
+          totalCost = perplexityCost + claudeCost;
+
+          const parsed = parseClaudeFormatted(finalContent);
+
+          const result = {
+            topic: body.topic,
+            method: "perplexity-claude",
+            summary: parsed.summary,
+            findings: parsed.findings,
+            created_at: new Date().toISOString(),
+            cost: {
+              perplexity: {
+                model: "Perplexity (sonar)",
+                prompt_tokens: perplexityResult.usage.prompt_tokens,
+                completion_tokens: perplexityResult.usage.completion_tokens,
+                total_tokens: perplexityResult.usage.total_tokens,
+                estimated_cost: `$${perplexityCost.toFixed(4)}`,
+              },
+              claude: {
+                model: "Claude Opus 4.1",
+                input_tokens: claudeUsage.input_tokens,
+                output_tokens: claudeUsage.output_tokens,
+                estimated_cost: `$${claudeCost.toFixed(4)}`,
+              },
+              total_estimated_cost: `$${totalCost.toFixed(4)}`,
+            },
+          };
+
+          // Save to Supabase
+          try {
+            await fetch(new URL("/api/research-history/save", request.url), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                topic: body.topic,
+                method: researchMethod,
+                summary: result.summary,
+                findings: result.findings,
+                cost: result.cost,
+              }),
+            });
+          } catch (e) {
+            console.log("[RESEARCH] Supabase save error (non-critical)");
+          }
+
+          sse.send("complete", result);
         }
-
-        if (!summary) {
-          summary = `Comprehensive research findings on "${body.topic}" from Perplexity real-time web search with ${findings.length} key findings identified.`;
-        }
-
-        const result = {
-          topic: body.topic,
-          findings,
-          summary,
-          created_at: new Date().toISOString(),
-        };
-
-        console.log("[RESEARCH] Research complete. Sending results.");
-        console.log("[RESEARCH] Total findings:", findings.length);
-        sse.send("complete", result);
-        controller.close();
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        console.error("[RESEARCH] Error during research:", errorMsg);
-        if (error instanceof Error) {
-          console.error("[RESEARCH] Error stack:", error.stack);
-        }
-        const sse = createSSEResponse(encoder, controller);
-        sse.send("error", {
-          message: errorMsg,
-        });
+        console.error("[RESEARCH] Error:", errorMsg);
+        sse.send("error", { message: errorMsg });
+      } finally {
         controller.close();
       }
     })();
