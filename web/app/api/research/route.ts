@@ -139,8 +139,14 @@ Be specific and provide factual information from multiple sources.`,
           findings = findingLines
             .map((line: string) => {
               // Remove numbering
-              const text = line.replace(/^\d+\.\s*/, "").trim();
+              let text = line.replace(/^\d+\.\s*/, "").trim();
               if (!text) return null;
+
+              // Clean up markdown formatting
+              text = text.replace(/\*\*/g, ""); // Remove bold
+              text = text.replace(/\[(\d+)\]/g, ""); // Remove citation numbers
+              text = text.replace(/#+\s/g, ""); // Remove headers
+              text = text.trim();
 
               return {
                 text,
@@ -185,15 +191,38 @@ Be specific and provide factual information from multiple sources.`,
         sse.send("progress", { stage: "ranking", message: "📊 Ranking by quality..." });
         await new Promise((r) => setTimeout(r, 500));
 
+        // Generate a smart summary from findings
+        let summary = "";
+        if (findings.length > 0) {
+          const topFindings = findings.slice(0, 3);
+          const summaryPoints = topFindings
+            .map((f: any) => {
+              // Extract first sentence or key phrase
+              let point = f.text.split(".")[0].trim();
+              // Clean up markdown formatting
+              point = point.replace(/\*\*/g, "").replace(/\[.*?\]/g, "").trim();
+              return point;
+            })
+            .filter((p: string) => p.length > 10);
+
+          if (summaryPoints.length > 0) {
+            summary = `Key insights on "${body.topic}": ${summaryPoints.join("; ")}. Based on ${findings.length} research findings from real-time web sources.`;
+          }
+        }
+
+        if (!summary) {
+          summary = `Comprehensive research findings on "${body.topic}" from Perplexity real-time web search with ${findings.length} key findings identified.`;
+        }
+
         const result = {
           topic: body.topic,
           findings,
-          summary: `Comprehensive research findings on "${body.topic}" from Perplexity real-time web search.`,
+          summary,
           created_at: new Date().toISOString(),
         };
 
         console.log("[RESEARCH] Research complete. Sending results.");
-        console.log("[RESEARCH] Total findings:", processedFindings.length);
+        console.log("[RESEARCH] Total findings:", findings.length);
         sse.send("complete", result);
         controller.close();
       } catch (error) {
