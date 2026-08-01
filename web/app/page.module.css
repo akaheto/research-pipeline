@@ -964,3 +964,52 @@
   opacity: 0.85;
   font-size: 0.85em;
 }
+
+.historyCheckbox {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.historyItemSelected {
+  background: rgba(102, 126, 234, 0.1);
+  border-color: #667eea;
+}
+
+.synthesisControls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.selectionCount {
+  font-size: 0.9em;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.synthesizeButton {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.synthesizeButton:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.synthesizeButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

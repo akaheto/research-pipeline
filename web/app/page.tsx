@@ -27,9 +27,11 @@ interface Research {
   findings: Finding[];
   summary: string;
   synthesis?: string;
-  method?: "perplexity-only" | "perplexity-claude" | "framework-synthesis";
+  method?: "perplexity-only" | "perplexity-claude" | "framework-synthesis" | "multi-search-synthesis";
   framework?: string;
   frameworkId?: string;
+  searchCount?: number;
+  searches?: any[];
   cost?: any;
   created_at?: string;
 }
@@ -64,6 +66,8 @@ export default function Home() {
   const [supabaseHistory, setSupabaseHistory] = useState<any[]>([]);
   const [matrixView, setMatrixView] = useState(true);
   const [showFrameworks, setShowFrameworks] = useState(false);
+  const [selectedHistoryItems, setSelectedHistoryItems] = useState<Set<string>>(new Set());
+  const [synthesisMode, setSynthesisMode] = useState(false);
 
   // Load history from Supabase on mount
   useEffect(() => {
@@ -190,6 +194,88 @@ export default function Home() {
   const handleLoadHistory = (entry: SearchHistory) => {
     setResult(entry.data);
     setTopic(entry.topic);
+  };
+
+  const toggleHistorySelection = (id: string) => {
+    const newSelected = new Set(selectedHistoryItems);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedHistoryItems(newSelected);
+  };
+
+  const handleSynthesizeSelected = async () => {
+    if (selectedHistoryItems.size < 2) {
+      setError("Select at least 2 searches to synthesize");
+      return;
+    }
+
+    setLoading(true);
+    setProgress("");
+    setError("");
+    setResult(null);
+    setSynthesisMode(false);
+
+    try {
+      const selectedSearches = supabaseHistory.filter((item) =>
+        selectedHistoryItems.has(item.id)
+      );
+
+      const response = await fetch("/api/synthesis/combine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          searches: selectedSearches,
+          title: `Synthesis: ${selectedSearches.map((s) => s.topic).join(" + ")}`,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Synthesis failed");
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("Response body is empty");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            const eventType = line.slice(7);
+            const dataLine = lines[lines.indexOf(line) + 1];
+
+            if (dataLine?.startsWith("data: ")) {
+              const data = JSON.parse(dataLine.slice(6));
+
+              if (eventType === "progress") {
+                setProgress(data.message);
+              } else if (eventType === "complete") {
+                setResult(data);
+                setSelectedHistoryItems(new Set());
+              } else if (eventType === "error") {
+                setError(data.message);
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+      setProgress("");
+    }
   };
 
   const handleRunFramework = async (frameworkId: string) => {
@@ -542,6 +628,21 @@ export default function Home() {
             <div className={styles.modalContent}>
               <div className={styles.modalHeader}>
                 <h3>📚 Research History</h3>
+                {selectedHistoryItems.size > 0 && (
+                  <div className={styles.synthesisControls}>
+                    <span className={styles.selectionCount}>{selectedHistoryItems.size} selected</span>
+                    {selectedHistoryItems.size >= 2 && (
+                      <button
+                        className={styles.synthesizeButton}
+                        onClick={handleSynthesizeSelected}
+                        disabled={loading}
+                        title="Synthesize selected searches"
+                      >
+                        ✨ Synthesize
+                      </button>
+                    )}
+                  </div>
+                )}
                 <button onClick={() => setShowHistory(false)} className={styles.modalClose}>
                   ✕
                 </button>
@@ -554,13 +655,22 @@ export default function Home() {
                   {supabaseHistory.map((item) => (
                     <div
                       key={item.id}
-                      className={styles.historyItem}
-                      onClick={() => loadFromHistory(item)}
+                      className={`${styles.historyItem} ${selectedHistoryItems.has(item.id) ? styles.historyItemSelected : ""}`}
                     >
-                      <div className={styles.historyItemContent}>
+                      <input
+                        type="checkbox"
+                        checked={selectedHistoryItems.has(item.id)}
+                        onChange={() => toggleHistorySelection(item.id)}
+                        className={styles.historyCheckbox}
+                      />
+                      <div
+                        className={styles.historyItemContent}
+                        onClick={() => !synthesisMode && loadFromHistory(item)}
+                        style={{ cursor: synthesisMode ? "default" : "pointer" }}
+                      >
                         <h4>{item.topic}</h4>
                         <p className={styles.historyMeta}>
-                          {item.method === "perplexity-claude" ? "🔬 P+C" : "📰 P"} •{" "}
+                          {item.method === "perplexity-claude" ? "🔬 P+C" : item.method === "framework-synthesis" ? "🎯 Framework" : "📰 P"} •{" "}
                           {new Date(item.created_at).toLocaleDateString()}
                         </p>
                       </div>
@@ -759,7 +869,20 @@ export default function Home() {
               <div className={styles.costBreakdown}>
                 <h4>📊 Research Cost</h4>
                 <div className={styles.costDetails}>
-                  {result.method === "framework-synthesis" ? (
+                  {result.method === "multi-search-synthesis" ? (
+                    <div>
+                      <div className={styles.costSection}>
+                        <strong>Multi-Search Synthesis:</strong>
+                        <div className={styles.costRow}>
+                          <span>Synthesizing {result.searchCount} searches</span>
+                          <span className={styles.costAmount}>{result.cost.estimated_cost}</span>
+                        </div>
+                      </div>
+                      <div className={styles.costTotal}>
+                        <strong>Total: {result.cost.estimated_cost}</strong>
+                      </div>
+                    </div>
+                  ) : result.method === "framework-synthesis" ? (
                     <div>
                       <div className={styles.costSection}>
                         <strong>Perplexity Searches:</strong>
@@ -822,7 +945,16 @@ export default function Home() {
 
             {result.synthesis ? (
               <div className={styles.summary}>
-                <h3>Framework Synthesis</h3>
+                <h3>
+                  {result.method === "multi-search-synthesis"
+                    ? `✨ Multi-Search Synthesis (${result.searchCount} searches)`
+                    : "Framework Synthesis"}
+                </h3>
+                {result.method === "multi-search-synthesis" && result.searches && (
+                  <div style={{ marginBottom: "16px", padding: "12px", background: "#f5f5f5", borderRadius: "6px", fontSize: "0.9em", color: "#666" }}>
+                    <strong>Source Searches:</strong> {result.searches.map((s: any) => s.topic).join(" → ")}
+                  </div>
+                )}
                 <div className={styles.summaryContent}>
                   {result.synthesis.split('\n').map((para, i) => (
                     para.trim() && <p key={i}>{para}</p>
