@@ -1262,3 +1262,101 @@
   flex-shrink: 0;
   margin-left: 12px;
 }
+
+/* Claims Verification Styles */
+.conflictsPanel {
+  background: #fff3cd;
+  border: 2px solid #ffc107;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.conflictsPanel h4 {
+  margin: 0 0 12px 0;
+  color: #856404;
+}
+
+.conflictClaimItem {
+  background: white;
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  border-left: 4px solid #ffc107;
+}
+
+.claimVsText {
+  text-align: center;
+  color: #f44336;
+  font-weight: 600;
+  margin: 8px 0;
+}
+
+.conflictReason {
+  margin: 8px 0 0 0;
+  font-size: 0.85em;
+  color: #333;
+}
+
+.claimsList {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.claimsList h4 {
+  margin: 0 0 12px 0;
+  color: #333;
+  position: sticky;
+  top: 0;
+  background: white;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.claimItem {
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.claimItemHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.confidenceBadge {
+  padding: 4px 10px;
+  border-radius: 4px;
+  color: white;
+  font-weight: 600;
+  font-size: 0.85em;
+  flex-shrink: 0;
+}
+
+.claimItemMeta {
+  font-size: 0.85em;
+  color: #666;
+}
+
+.claimText {
+  font-size: 0.95em;
+  line-height: 1.5;
+  color: #333;
+  margin: 0;
+  font-style: italic;
+}
+
+.claimCitations {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.claimCitations small {
+  color: #667eea;
+  font-weight: 600;
+}

@@ -6,6 +6,7 @@ import { getSearchAnalytics, getTimeAgo } from "@/lib/analytics";
 import { deduplicateFindings } from "@/lib/deduplication";
 import { frameworks } from "@/lib/frameworks";
 import { extractCitations, aggregateSources, detectContradictions, getCredibilityColor, getCredibilityLabel } from "@/lib/sources";
+import { aggregateClaims, detectConflicts, getClaimConfidence, getConfidenceColor } from "@/lib/claims";
 
 interface Finding {
   text: string;
@@ -73,6 +74,9 @@ export default function Home() {
   const [selectedSource, setSelectedSource] = useState<any>(null);
   const [sources, setSources] = useState<any>(null);
   const [contradictions, setContradictions] = useState<any[]>([]);
+  const [showClaims, setShowClaims] = useState(false);
+  const [claims, setClaims] = useState<any[]>([]);
+  const [claimConflicts, setClaimConflicts] = useState<any[]>([]);
 
   // Load history from Supabase on mount
   useEffect(() => {
@@ -131,6 +135,15 @@ export default function Home() {
 
       const foundContradictions = detectContradictions(extractedSources);
       setContradictions(foundContradictions);
+
+      // Extract claims
+      const extractedClaims = aggregateClaims([
+        { topic: result.topic, content: result.synthesis },
+      ]);
+      setClaims(extractedClaims);
+
+      const foundConflicts = detectConflicts(extractedClaims);
+      setClaimConflicts(foundConflicts);
     }
   }, [result]);
 
@@ -858,6 +871,74 @@ export default function Home() {
           </div>
         )}
 
+        {/* Claims Verification Panel */}
+        {showClaims && claims.length > 0 && (
+          <div className={styles.modal}>
+            <div className={styles.modalContent}>
+              <div className={styles.modalHeader}>
+                <h3>🔍 Claim Verification</h3>
+                {claimConflicts.length > 0 && (
+                  <span className={styles.contradictionBadge}>⚠️ {claimConflicts.length} conflicts</span>
+                )}
+                <button onClick={() => setShowClaims(false)} className={styles.modalClose}>
+                  ✕
+                </button>
+              </div>
+
+              {claimConflicts.length > 0 && (
+                <div className={styles.conflictsPanel}>
+                  <h4>⚠️ Conflicting Claims</h4>
+                  {claimConflicts.slice(0, 3).map((conflict: any, i: number) => (
+                    <div key={i} className={styles.conflictClaimItem}>
+                      <div className={styles.claimText}>"{conflict.claim1.text}"</div>
+                      <div className={styles.claimVsText}>vs</div>
+                      <div className={styles.claimText}>"{conflict.claim2.text}"</div>
+                      <p className={styles.conflictReason}>{conflict.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className={styles.claimsList}>
+                <h4>All Claims ({claims.length})</h4>
+                {claims
+                  .sort((a: any, b: any) => {
+                    const confA = getClaimConfidence(a);
+                    const confB = getClaimConfidence(b);
+                    const order = { high: 0, medium: 1, low: 2 };
+                    return order[confA] - order[confB];
+                  })
+                  .map((claim: any, i: number) => {
+                    const confidence = getClaimConfidence(claim);
+                    return (
+                      <div key={i} className={styles.claimItem}>
+                        <div className={styles.claimItemHeader}>
+                          <div
+                            className={styles.confidenceBadge}
+                            style={{ backgroundColor: getConfidenceColor(confidence) }}
+                            title={`Appears ${claim.appearanceCount}x, ${claim.citations.length} citations`}
+                          >
+                            {confidence.toUpperCase()}
+                          </div>
+                          <div className={styles.claimItemMeta}>
+                            {claim.isSupported ? "✓ Cited" : "✗ Unsupported"} • {claim.appearanceCount} search
+                            {claim.appearanceCount !== 1 ? "es" : ""}
+                          </div>
+                        </div>
+                        <p className={styles.claimText}>"{claim.text}"</p>
+                        {claim.citations.length > 0 && (
+                          <div className={styles.claimCitations}>
+                            <small>Sources: {claim.citations.map((c: any) => c.title).join(", ")}</small>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Debug Modal */}
         {showDebug && (
           <div className={styles.modal}>
@@ -979,6 +1060,16 @@ export default function Home() {
                   >
                     📚 Sources ({Object.keys(sources).length})
                     {contradictions.length > 0 && <span style={{ marginLeft: "6px", color: "#f44336" }}>⚠️</span>}
+                  </button>
+                )}
+                {claims.length > 0 && (
+                  <button
+                    onClick={() => setShowClaims(true)}
+                    className={styles.toggleButton}
+                    title="Verify claims and detect conflicts"
+                  >
+                    🔍 Claims ({claims.length})
+                    {claimConflicts.length > 0 && <span style={{ marginLeft: "6px", color: "#f44336" }}>⚠️</span>}
                   </button>
                 )}
               </div>
