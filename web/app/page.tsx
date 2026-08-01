@@ -7,6 +7,7 @@ import { deduplicateFindings } from "@/lib/deduplication";
 import { frameworks } from "@/lib/frameworks";
 import { extractCitations, aggregateSources, detectContradictions, getCredibilityColor, getCredibilityLabel } from "@/lib/sources";
 import { aggregateClaims, detectConflicts, getClaimConfidence, getConfidenceColor } from "@/lib/claims";
+import { loadCustomTemplates, saveCustomTemplate, deleteCustomTemplate, createCustomTemplate, validateTemplate, getEmptyTemplate } from "@/lib/customTemplates";
 
 interface Finding {
   text: string;
@@ -77,10 +78,16 @@ export default function Home() {
   const [showClaims, setShowClaims] = useState(false);
   const [claims, setClaims] = useState<any[]>([]);
   const [claimConflicts, setClaimConflicts] = useState<any[]>([]);
+  const [customTemplates, setCustomTemplates] = useState<any[]>([]);
+  const [showTemplateBuilder, setShowTemplateBuilder] = useState(false);
+  const [templateForm, setTemplateForm] = useState<any>(getEmptyTemplate());
+  const [templateError, setTemplateError] = useState("");
 
   // Load history from Supabase on mount
   useEffect(() => {
     fetchSupabaseHistory();
+    const templates = loadCustomTemplates();
+    setCustomTemplates(templates);
   }, []);
 
   const fetchSupabaseHistory = async () => {
@@ -237,6 +244,41 @@ export default function Home() {
     setSelectedHistoryItems(newSelected);
   };
 
+  const handleSaveTemplate = () => {
+    const error = validateTemplate(templateForm.name, templateForm.queries);
+    if (error) {
+      setTemplateError(error);
+      return;
+    }
+
+    createCustomTemplate(templateForm.name, templateForm.description, templateForm.icon, templateForm.queries);
+    setCustomTemplates(loadCustomTemplates());
+    setShowTemplateBuilder(false);
+    setTemplateForm(getEmptyTemplate());
+    setTemplateError("");
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+    deleteCustomTemplate(id);
+    setCustomTemplates(loadCustomTemplates());
+  };
+
+  const handleAddQuery = () => {
+    if (templateForm.queries.length < 10) {
+      setTemplateForm({
+        ...templateForm,
+        queries: [...templateForm.queries, { label: "", query: "" }],
+      });
+    }
+  };
+
+  const handleRemoveQuery = (index: number) => {
+    setTemplateForm({
+      ...templateForm,
+      queries: templateForm.queries.filter((_: any, i: number) => i !== index),
+    });
+  };
+
   const handleSynthesizeSelected = async () => {
     if (selectedHistoryItems.size < 2) {
       setError("Select at least 2 searches to synthesize");
@@ -317,6 +359,18 @@ export default function Home() {
     setError("");
     setResult(null);
     setShowFrameworks(false);
+
+    // Get framework (built-in or custom)
+    let framework = frameworks.find((f) => f.id === frameworkId);
+    if (!framework) {
+      framework = customTemplates.find((t) => t.id === frameworkId);
+    }
+
+    if (!framework) {
+      setError("Framework not found");
+      setLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch("/api/frameworks/run", {
@@ -724,11 +778,18 @@ export default function Home() {
         )}
 
         {/* Frameworks Modal */}
-        {showFrameworks && (
+        {showFrameworks && !showTemplateBuilder && (
           <div className={styles.modal}>
             <div className={styles.modalContent}>
               <div className={styles.modalHeader}>
                 <h3>🎯 Research Frameworks</h3>
+                <button
+                  onClick={() => setShowTemplateBuilder(true)}
+                  className={styles.createTemplateButton}
+                  title="Create a custom framework"
+                >
+                  ➕ Create Custom
+                </button>
                 <button onClick={() => setShowFrameworks(false)} className={styles.modalClose}>
                   ✕
                 </button>
@@ -749,6 +810,133 @@ export default function Home() {
                     </div>
                   </div>
                 ))}
+                {customTemplates.map((template) => (
+                  <div
+                    key={template.id}
+                    className={`${styles.frameworkCard} ${styles.customFrameworkCard}`}
+                    onClick={() => handleRunFramework(template.id)}
+                  >
+                    <div className={styles.frameworkIcon}>{template.icon}</div>
+                    <h4>{template.name}</h4>
+                    <p>{template.description}</p>
+                    <div className={styles.frameworkQueries}>
+                      <small>{template.queries.length} focused searches</small>
+                      <button
+                        className={styles.deleteTemplateButton}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTemplate(template.id);
+                        }}
+                        title="Delete this custom template"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Template Builder Modal */}
+        {showTemplateBuilder && (
+          <div className={styles.modal}>
+            <div className={styles.modalContent}>
+              <div className={styles.modalHeader}>
+                <h3>✨ Create Custom Framework</h3>
+                <button onClick={() => setShowTemplateBuilder(false)} className={styles.modalClose}>
+                  ✕
+                </button>
+              </div>
+
+              {templateError && <div className={styles.error}>{templateError}</div>}
+
+              <div className={styles.templateForm}>
+                <div className={styles.formGroup}>
+                  <label>Icon</label>
+                  <input
+                    type="text"
+                    value={templateForm.icon}
+                    onChange={(e) => setTemplateForm({ ...templateForm, icon: e.target.value })}
+                    placeholder="Pick an emoji (e.g., 📊, 🏆, 📈)"
+                    maxLength={2}
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>Name *</label>
+                  <input
+                    type="text"
+                    value={templateForm.name}
+                    onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })}
+                    placeholder="e.g., Sales Analysis"
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>Description</label>
+                  <input
+                    type="text"
+                    value={templateForm.description}
+                    onChange={(e) => setTemplateForm({ ...templateForm, description: e.target.value })}
+                    placeholder="What this framework analyzes"
+                  />
+                </div>
+
+                <div className={styles.queriesSection}>
+                  <h4>Search Queries ({templateForm.queries.length}/10)</h4>
+                  {templateForm.queries.map((q: any, i: number) => (
+                    <div key={i} className={styles.queryItem}>
+                      <input
+                        type="text"
+                        value={q.label}
+                        onChange={(e) => {
+                          const updated = [...templateForm.queries];
+                          updated[i].label = e.target.value;
+                          setTemplateForm({ ...templateForm, queries: updated });
+                        }}
+                        placeholder="Query label (e.g., Market Size)"
+                        className={styles.queryLabel}
+                      />
+                      <input
+                        type="text"
+                        value={q.query}
+                        onChange={(e) => {
+                          const updated = [...templateForm.queries];
+                          updated[i].query = e.target.value;
+                          setTemplateForm({ ...templateForm, queries: updated });
+                        }}
+                        placeholder="Search question"
+                        className={styles.queryText}
+                      />
+                      {templateForm.queries.length > 1 && (
+                        <button
+                          className={styles.removeQueryButton}
+                          onClick={() => handleRemoveQuery(i)}
+                          title="Remove this query"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+
+                  {templateForm.queries.length < 10 && (
+                    <button className={styles.addQueryButton} onClick={handleAddQuery}>
+                      + Add Query
+                    </button>
+                  )}
+                </div>
+
+                <div className={styles.templateActions}>
+                  <button className={styles.cancelButton} onClick={() => setShowTemplateBuilder(false)}>
+                    Cancel
+                  </button>
+                  <button className={styles.saveButton} onClick={handleSaveTemplate}>
+                    Create Framework
+                  </button>
+                </div>
               </div>
             </div>
           </div>
