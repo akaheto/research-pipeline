@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import styles from "./page.module.css";
+import { getSearchAnalytics, getTimeAgo } from "@/lib/analytics";
+import { deduplicateFindings } from "@/lib/deduplication";
 
 interface Finding {
   text: string;
@@ -29,6 +31,7 @@ interface SearchHistory {
   id: string;
   topic: string;
   timestamp: number;
+  findingsCount: number;
   data: Research;
 }
 
@@ -39,10 +42,13 @@ export default function Home() {
   const [result, setResult] = useState<Research | null>(null);
   const [history, setHistory] = useState<SearchHistory[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [maxResults, setMaxResults] = useState(20);
   const [similarity, setSimilarity] = useState(0.85);
   const [minScore, setMinScore] = useState(0);
   const [citationFormat, setCitationFormat] = useState<"none" | "apa" | "mla" | "chicago">("none");
+  const [showGrouped, setShowGrouped] = useState(true);
+  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
   const [error, setError] = useState("");
 
   // Load history from localStorage
@@ -111,6 +117,7 @@ export default function Home() {
                   id: Date.now().toString(),
                   topic,
                   timestamp: Date.now(),
+                  findingsCount: data.findings.length,
                   data,
                 };
                 setHistory([newEntry, ...history.slice(0, 19)]);
@@ -200,6 +207,14 @@ export default function Home() {
           >
             ⚙️
           </button>
+          <button
+            type="button"
+            onClick={() => setShowAnalytics(!showAnalytics)}
+            className={styles.settingsButton}
+            title="Analytics"
+          >
+            📊
+          </button>
         </form>
 
         {error && <div className={styles.error}>{error}</div>}
@@ -253,6 +268,98 @@ export default function Home() {
           </div>
         )}
 
+        {/* Analytics Modal */}
+        {showAnalytics && (
+          <div className={styles.modal}>
+            <div className={styles.modalContent}>
+              <div className={styles.modalHeader}>
+                <h3>📊 Search Analytics</h3>
+                <button
+                  onClick={() => setShowAnalytics(false)}
+                  className={styles.modalClose}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {history.length === 0 ? (
+                <p className={styles.emptyState}>Start searching to see analytics</p>
+              ) : (
+                <>
+                  {(() => {
+                    const analytics = getSearchAnalytics(
+                      history.map((h) => ({
+                        topic: h.topic,
+                        timestamp: h.timestamp,
+                        findingsCount: h.findingsCount,
+                      }))
+                    );
+
+                    return (
+                      <>
+                        <div className={styles.analyticsStats}>
+                          <div className={styles.stat}>
+                            <div className={styles.statValue}>{analytics.totalSearches}</div>
+                            <div className={styles.statLabel}>Total Searches</div>
+                          </div>
+                          <div className={styles.stat}>
+                            <div className={styles.statValue}>{analytics.uniqueTopics}</div>
+                            <div className={styles.statLabel}>Unique Topics</div>
+                          </div>
+                        </div>
+
+                        {analytics.trending.length > 0 && (
+                          <div className={styles.analyticsSection}>
+                            <h4>🔥 Trending Topics</h4>
+                            <ul className={styles.analyticsList}>
+                              {analytics.trending.map((item, i) => (
+                                <li key={i}>
+                                  <span className={styles.trendingTopic}>{item.topic}</span>
+                                  <span className={styles.trendingCount}>{item.count}x</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {analytics.topSearches.length > 0 && (
+                          <div className={styles.analyticsSection}>
+                            <h4>⭐ Top Searches</h4>
+                            <ul className={styles.analyticsList}>
+                              {analytics.topSearches.map((item, i) => (
+                                <li key={i}>
+                                  <span className={styles.trendingTopic}>{item.topic}</span>
+                                  <span className={styles.trendingCount}>{item.count}x</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {analytics.recentActivity.length > 0 && (
+                          <div className={styles.analyticsSection}>
+                            <h4>📅 Recent Activity</h4>
+                            <ul className={styles.analyticsList}>
+                              {analytics.recentActivity.map((item, i) => (
+                                <li key={i} className={styles.activityItem}>
+                                  <span className={styles.activityTopic}>{item.topic}</span>
+                                  <span className={styles.activityMeta}>
+                                    {item.findings} findings • {getTimeAgo(item.timestamp)}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Results */}
         {result && (
           <div className={styles.results}>
@@ -295,34 +402,132 @@ export default function Home() {
             )}
 
             <div className={styles.findings}>
-              <h3>Key Findings ({result.findings.length})</h3>
-              {result.findings.map((finding, i) => (
-                <div key={i} className={styles.finding}>
-                  <div className={styles.findingContent}>
-                    <p className={styles.findingText}>{finding.text}</p>
-                    <div className={styles.scoreBar}>
-                      <div
-                        className={styles.scoreIndicator}
-                        style={{ width: `${finding.scores.combined * 100}%` }}
-                      />
+              <div className={styles.findingsHeader}>
+                <h3>Key Findings ({result.findings.length})</h3>
+                {(() => {
+                  const grouped = deduplicateFindings(result.findings);
+                  return (
+                    <>
+                      {deduplicateFindings(result.findings).some((g) => g.duplicates.length > 0) && (
+                        <button
+                          onClick={() => setShowGrouped(!showGrouped)}
+                          className={styles.toggleButton}
+                        >
+                          {showGrouped ? "📋 Flat View" : "🔗 Group Similar"}
+                        </button>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              {showGrouped
+                ? (() => {
+                    const grouped = deduplicateFindings(result.findings);
+                    return grouped.map((group, i) => (
+                      <div key={i} className={styles.findingGroup}>
+                        <div
+                          className={styles.finding}
+                          onClick={() => {
+                            const newExpanded = new Set(expandedGroups);
+                            if (newExpanded.has(i)) {
+                              newExpanded.delete(i);
+                            } else {
+                              newExpanded.add(i);
+                            }
+                            setExpandedGroups(newExpanded);
+                          }}
+                        >
+                          {group.duplicates.length > 0 && (
+                            <div className={styles.groupBadge}>
+                              {expandedGroups.has(i) ? "−" : "+"} {group.duplicates.length}
+                            </div>
+                          )}
+                          <div className={styles.findingContent}>
+                            <p className={styles.findingText}>{group.primary.text}</p>
+                            <div className={styles.scoreBar}>
+                              <div
+                                className={styles.scoreIndicator}
+                                style={{
+                                  width: `${group.primary.scores.combined * 100}%`,
+                                }}
+                              />
+                            </div>
+                            <div className={styles.scores}>
+                              <span>Relevance: {(group.primary.scores.relevance * 100).toFixed(0)}%</span>
+                              <span>Credibility: {(group.primary.scores.credibility * 100).toFixed(0)}%</span>
+                              <span>Recency: {(group.primary.scores.recency * 100).toFixed(0)}%</span>
+                              <span className={styles.combined}>
+                                Combined: {(group.primary.scores.combined * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                          </div>
+                          <div className={styles.source}>
+                            <a
+                              href={group.primary.source.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {group.primary.source.title}
+                            </a>
+                            <p>{group.primary.source.domain}</p>
+                          </div>
+                        </div>
+
+                        {expandedGroups.has(i) &&
+                          group.duplicates.map((dup, j) => (
+                            <div key={`dup-${j}`} className={styles.duplicate}>
+                              <div className={styles.findingContent}>
+                                <p className={styles.findingText}>{dup.text}</p>
+                                <div className={styles.scores}>
+                                  <span>Relevance: {(dup.scores.relevance * 100).toFixed(0)}%</span>
+                                  <span>Credibility: {(dup.scores.credibility * 100).toFixed(0)}%</span>
+                                  <span>Recency: {(dup.scores.recency * 100).toFixed(0)}%</span>
+                                </div>
+                              </div>
+                              <div className={styles.source}>
+                                <a
+                                  href={dup.source.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  {dup.source.title}
+                                </a>
+                                <p>{dup.source.domain}</p>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    ));
+                  })()
+                : result.findings.map((finding, i) => (
+                    <div key={i} className={styles.finding}>
+                      <div className={styles.findingContent}>
+                        <p className={styles.findingText}>{finding.text}</p>
+                        <div className={styles.scoreBar}>
+                          <div
+                            className={styles.scoreIndicator}
+                            style={{ width: `${finding.scores.combined * 100}%` }}
+                          />
+                        </div>
+                        <div className={styles.scores}>
+                          <span>Relevance: {(finding.scores.relevance * 100).toFixed(0)}%</span>
+                          <span>Credibility: {(finding.scores.credibility * 100).toFixed(0)}%</span>
+                          <span>Recency: {(finding.scores.recency * 100).toFixed(0)}%</span>
+                          <span className={styles.combined}>
+                            Combined: {(finding.scores.combined * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className={styles.source}>
+                        <a href={finding.source.url} target="_blank" rel="noopener noreferrer">
+                          {finding.source.title}
+                        </a>
+                        <p>{finding.source.domain}</p>
+                      </div>
                     </div>
-                    <div className={styles.scores}>
-                      <span>Relevance: {(finding.scores.relevance * 100).toFixed(0)}%</span>
-                      <span>Credibility: {(finding.scores.credibility * 100).toFixed(0)}%</span>
-                      <span>Recency: {(finding.scores.recency * 100).toFixed(0)}%</span>
-                      <span className={styles.combined}>
-                        Combined: {(finding.scores.combined * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  </div>
-                  <div className={styles.source}>
-                    <a href={finding.source.url} target="_blank" rel="noopener noreferrer">
-                      {finding.source.title}
-                    </a>
-                    <p>{finding.source.domain}</p>
-                  </div>
-                </div>
-              ))}
+                  ))}
             </div>
           </div>
         )}
