@@ -38,10 +38,12 @@ export async function POST(request: NextRequest) {
 
         const apiKey = process.env.PERPLEXITY_API_KEY;
         if (!apiKey) {
-          throw new Error("PERPLEXITY_API_KEY not configured");
+          throw new Error("PERPLEXITY_API_KEY environment variable not set in Vercel");
         }
 
-        // Call Perplexity API
+        console.log("Calling Perplexity API for topic:", body.topic);
+
+        // Call Perplexity API (correct endpoint with /v1/)
         const response = await fetch("https://api.perplexity.ai/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -74,7 +76,9 @@ Return ONLY valid JSON array, no markdown. Limit to ${body.max_results || 20} fi
         });
 
         if (!response.ok) {
-          throw new Error(`Perplexity API error: ${response.status}`);
+          const errorText = await response.text();
+          console.error(`Perplexity API error ${response.status}:`, errorText);
+          throw new Error(`Perplexity API error: ${response.status} - Check API key and endpoint`);
         }
 
         const data = await response.json();
