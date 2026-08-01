@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       console.log("[DEBUG] Testing Perplexity API connection...");
 
       const testPayload = {
-        model: "perplexity/sonar",
+        model: "sonar",
         messages: [
           {
             role: "user",

@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
         console.log("[RESEARCH] Request params:", { max_results: body.max_results, apiKeySet: !!apiKey });
 
         const requestPayload = {
-          model: "perplexity/sonar",
+          model: "sonar",
           messages: [
             {
               role: "system",
