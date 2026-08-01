@@ -5,6 +5,7 @@ import styles from "./page.module.css";
 import { getSearchAnalytics, getTimeAgo } from "@/lib/analytics";
 import { deduplicateFindings } from "@/lib/deduplication";
 import { frameworks } from "@/lib/frameworks";
+import { extractCitations, aggregateSources, detectContradictions, getCredibilityColor, getCredibilityLabel } from "@/lib/sources";
 
 interface Finding {
   text: string;
@@ -68,6 +69,10 @@ export default function Home() {
   const [showFrameworks, setShowFrameworks] = useState(false);
   const [selectedHistoryItems, setSelectedHistoryItems] = useState<Set<string>>(new Set());
   const [synthesisMode, setSynthesisMode] = useState(false);
+  const [showSources, setShowSources] = useState(false);
+  const [selectedSource, setSelectedSource] = useState<any>(null);
+  const [sources, setSources] = useState<any>(null);
+  const [contradictions, setContradictions] = useState<any[]>([]);
 
   // Load history from Supabase on mount
   useEffect(() => {
@@ -115,6 +120,19 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem("researchHistory", JSON.stringify(history));
   }, [history]);
+
+  // Extract and analyze sources when result changes
+  useEffect(() => {
+    if (result && result.synthesis) {
+      const extractedSources = aggregateSources([
+        { topic: result.topic, content: result.synthesis },
+      ]);
+      setSources(extractedSources);
+
+      const foundContradictions = detectContradictions(extractedSources);
+      setContradictions(foundContradictions);
+    }
+  }, [result]);
 
   const handleSearch = async (e: React.FormEvent, researchMethod: "perplexity-only" | "perplexity-claude" = "perplexity-claude") => {
     e.preventDefault();
@@ -723,6 +741,123 @@ export default function Home() {
           </div>
         )}
 
+        {/* Sources Evaluation Panel */}
+        {showSources && sources && (
+          <div className={styles.modal}>
+            <div className={styles.modalContent}>
+              <div className={styles.modalHeader}>
+                <h3>📚 Sources & Credibility</h3>
+                {contradictions.length > 0 && (
+                  <span className={styles.contradictionBadge}>⚠️ {contradictions.length} conflicts</span>
+                )}
+                <button onClick={() => setShowSources(false)} className={styles.modalClose}>
+                  ✕
+                </button>
+              </div>
+
+              {selectedSource ? (
+                <div className={styles.sourceDetail}>
+                  <button onClick={() => setSelectedSource(null)} className={styles.backButton}>
+                    ← Back to Sources
+                  </button>
+                  <div className={styles.sourceDetailHeader}>
+                    <a href={selectedSource.url} target="_blank" rel="noopener noreferrer" className={styles.sourceTitle}>
+                      {selectedSource.title}
+                    </a>
+                    <span className={styles.sourceDomain}>{selectedSource.domain}</span>
+                  </div>
+
+                  <div className={styles.credibilityPanel}>
+                    <h4>Credibility Assessment</h4>
+                    <div className={styles.credibilityScore}>
+                      <div
+                        className={styles.credibilityBar}
+                        style={{
+                          width: `${selectedSource.credibilityScore * 100}%`,
+                          backgroundColor: getCredibilityColor(selectedSource.credibilityScore),
+                        }}
+                      />
+                      <span className={styles.credibilityText}>
+                        {getCredibilityLabel(selectedSource.credibilityScore)} ({selectedSource.credibilityScore.toFixed(2)})
+                      </span>
+                    </div>
+
+                    <div className={styles.credibilityFactors}>
+                      <div className={styles.factor}>
+                        <strong>Domain Reputation:</strong> {(selectedSource.credibilityFactors.domainReputation * 100).toFixed(0)}%
+                      </div>
+                      <div className={styles.factor}>
+                        <strong>Academic Credibility:</strong> {(selectedSource.credibilityFactors.academicCredibility * 100).toFixed(0)}%
+                      </div>
+                      <div className={styles.factor}>
+                        <strong>Authority:</strong> {(selectedSource.credibilityFactors.authoritative * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.appearancesPanel}>
+                    <h4>Where This Source Appears ({selectedSource.appearances.length})</h4>
+                    {selectedSource.appearances.map((appearance: any, i: number) => (
+                      <div key={i} className={styles.appearanceItem}>
+                        <strong>{appearance.searchTopic}</strong>
+                        <p className={styles.context}>{appearance.context}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {contradictions.length > 0 && (
+                    <div className={styles.contradictionsPanel}>
+                      <h4>⚠️ Potential Conflicts</h4>
+                      {contradictions.slice(0, 3).map((conflict: any, i: number) => (
+                        <div key={i} className={styles.contradictionItem}>
+                          <div className={styles.conflictSources}>
+                            <span className={styles.conflictBadge}>{conflict.source1.domain}</span>
+                            <span className={styles.conflictVs}>vs</span>
+                            <span className={styles.conflictBadge}>{conflict.source2.domain}</span>
+                          </div>
+                          <p>{conflict.conflictDescription}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className={styles.sourcesList}>
+                    <h4>All Sources ({Object.keys(sources).length})</h4>
+                    {Object.values(sources)
+                      .sort((a: any, b: any) => b.credibilityScore - a.credibilityScore)
+                      .map((source: any) => (
+                        <div
+                          key={source.url}
+                          className={styles.sourceItem}
+                          onClick={() => setSelectedSource(source)}
+                        >
+                          <div className={styles.sourceItemContent}>
+                            <div className={styles.sourceItemTitle}>{source.title}</div>
+                            <div className={styles.sourceItemMeta}>
+                              {source.domain} • Cited {source.citationCount}x
+                            </div>
+                          </div>
+                          <div
+                            className={styles.credibilityBadge}
+                            style={{
+                              backgroundColor: getCredibilityColor(source.credibilityScore),
+                              color: "white",
+                            }}
+                            title={getCredibilityLabel(source.credibilityScore)}
+                          >
+                            {(source.credibilityScore * 100).toFixed(0)}%
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Debug Modal */}
         {showDebug && (
           <div className={styles.modal}>
@@ -826,15 +961,27 @@ export default function Home() {
           <div className={styles.results}>
             <div className={styles.header2}>
               <h2>{result.topic}</h2>
-              {result.method === "perplexity-only" && (
-                <button
-                  onClick={() => setMatrixView(!matrixView)}
-                  className={styles.toggleButton}
-                  title="Toggle between table and prose view"
-                >
-                  {matrixView ? "📝 Prose View" : "📊 Matrix View"}
-                </button>
-              )}
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                {result.method === "perplexity-only" && (
+                  <button
+                    onClick={() => setMatrixView(!matrixView)}
+                    className={styles.toggleButton}
+                    title="Toggle between table and prose view"
+                  >
+                    {matrixView ? "📝 Prose View" : "📊 Matrix View"}
+                  </button>
+                )}
+                {sources && Object.keys(sources).length > 0 && (
+                  <button
+                    onClick={() => setShowSources(true)}
+                    className={styles.toggleButton}
+                    title="View sources and credibility analysis"
+                  >
+                    📚 Sources ({Object.keys(sources).length})
+                    {contradictions.length > 0 && <span style={{ marginLeft: "6px", color: "#f44336" }}>⚠️</span>}
+                  </button>
+                )}
+              </div>
               <div className={styles.downloadSection}>
                 <div className={styles.citationFormat}>
                   <label htmlFor="citation">Citations:</label>
