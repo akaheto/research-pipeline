@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
         console.log("[RESEARCH] Request params:", { max_results: body.max_results, apiKeySet: !!apiKey });
 
         const requestPayload = {
-          model: "pplx-70b-online",
+          model: "perplexity/sonar",
           messages: [
             {
               role: "system",
@@ -73,7 +73,7 @@ Return ONLY valid JSON array, no markdown. Limit to ${body.max_results || 20} fi
         console.log("[RESEARCH] Endpoint: https://api.perplexity.ai/v1/chat/completions");
         console.log("[RESEARCH] Request payload size:", JSON.stringify(requestPayload).length, "bytes");
 
-        const response = await fetch("https://api.perplexity.ai/v1/chat/completions", {
+        const response = await fetch("https://api.perplexity.ai/chat/completions", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${apiKey}`,

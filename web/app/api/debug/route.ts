@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       console.log("[DEBUG] Testing Perplexity API connection...");
 
       const testPayload = {
-        model: "pplx-70b-online",
+        model: "perplexity/sonar",
         messages: [
           {
             role: "user",
@@ -40,12 +40,12 @@ export async function GET(request: NextRequest) {
         max_tokens: 50,
       };
 
-      console.log("[DEBUG] Request URL: https://api.perplexity.ai/v1/chat/completions");
+      console.log("[DEBUG] Request URL: https://api.perplexity.ai/chat/completions");
       console.log("[DEBUG] Request headers: Authorization: Bearer [KEY], Content-Type: application/json");
       console.log("[DEBUG] Request body:", JSON.stringify(testPayload, null, 2));
 
       const startTime = Date.now();
-      const response = await fetch("https://api.perplexity.ai/v1/chat/completions", {
+      const response = await fetch("https://api.perplexity.ai/chat/completions", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
