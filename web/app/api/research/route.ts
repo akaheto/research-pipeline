@@ -102,11 +102,23 @@ Be specific and provide factual information from multiple sources.`,
           throw new Error(`Perplexity API error ${response.status}: ${errorText.substring(0, 200)}`);
         }
 
-        const data = await response.json();
+        let data;
+        try {
+          data = await response.json();
+        } catch (jsonError) {
+          const rawText = await response.text();
+          console.error("[RESEARCH] Failed to parse API response as JSON");
+          console.error("[RESEARCH] Raw response preview:", rawText.substring(0, 500));
+          throw new Error(`API returned invalid JSON: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`);
+        }
+
         console.log("[RESEARCH] Response JSON parsed successfully");
         console.log("[RESEARCH] Message content length:", data.choices?.[0]?.message?.content?.length || 0);
 
         const responseText = data.choices?.[0]?.message?.content || "";
+        if (!responseText) {
+          throw new Error("No content in API response");
+        }
 
         // Parse plain text response
         let findings = [];
