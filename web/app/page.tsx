@@ -8,6 +8,7 @@ import { frameworks } from "@/lib/frameworks";
 import { extractCitations, aggregateSources, detectContradictions, getCredibilityColor, getCredibilityLabel } from "@/lib/sources";
 import { aggregateClaims, detectConflicts, getClaimConfidence, getConfidenceColor } from "@/lib/claims";
 import { loadCustomTemplates, saveCustomTemplate, deleteCustomTemplate, createCustomTemplate, validateTemplate, getEmptyTemplate } from "@/lib/customTemplates";
+import { loadAnnotations, createAnnotation, deleteAnnotation, getResearchComparison } from "@/lib/annotations";
 
 interface Finding {
   text: string;
@@ -82,6 +83,11 @@ export default function Home() {
   const [showTemplateBuilder, setShowTemplateBuilder] = useState(false);
   const [templateForm, setTemplateForm] = useState<any>(getEmptyTemplate());
   const [templateError, setTemplateError] = useState("");
+  const [annotations, setAnnotations] = useState<any[]>([]);
+  const [showAnnotations, setShowAnnotations] = useState(false);
+  const [newNote, setNewNote] = useState("");
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [selectedComparison, setSelectedComparison] = useState<any>(null);
 
   // Load history from Supabase on mount
   useEffect(() => {
@@ -151,8 +157,25 @@ export default function Home() {
 
       const foundConflicts = detectConflicts(extractedClaims);
       setClaimConflicts(foundConflicts);
+
+      // Load annotations for this result
+      const researchId = result.topic;
+      const loadedAnnotations = loadAnnotations(researchId);
+      setAnnotations(loadedAnnotations);
     }
   }, [result]);
+
+  const handleAddNote = () => {
+    if (!newNote.trim() || !result) return;
+    const annotation = createAnnotation(result.topic, "General", newNote);
+    setAnnotations([...annotations, annotation]);
+    setNewNote("");
+  };
+
+  const handleDeleteNote = (id: string) => {
+    deleteAnnotation(id);
+    setAnnotations(annotations.filter((a) => a.id !== id));
+  };
 
   const handleSearch = async (e: React.FormEvent, researchMethod: "perplexity-only" | "perplexity-claude" = "perplexity-claude") => {
     e.preventDefault();
@@ -1127,6 +1150,120 @@ export default function Home() {
           </div>
         )}
 
+        {/* Annotations Panel */}
+        {showAnnotations && (
+          <div className={styles.modal}>
+            <div className={styles.modalContent}>
+              <div className={styles.modalHeader}>
+                <h3>📝 Research Notes</h3>
+                <button onClick={() => setShowAnnotations(false)} className={styles.modalClose}>
+                  ✕
+                </button>
+              </div>
+
+              <div className={styles.annotationsSection}>
+                <div className={styles.annotationInput}>
+                  <textarea
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    placeholder="Add a note about this research..."
+                    className={styles.noteInput}
+                  />
+                  <button className={styles.addNoteButton} onClick={handleAddNote}>
+                    Add Note
+                  </button>
+                </div>
+
+                {annotations.length > 0 ? (
+                  <div className={styles.annotationsList}>
+                    {annotations.map((ann: any) => (
+                      <div key={ann.id} className={styles.annotationItem}>
+                        <div className={styles.annotationContent}>
+                          <p className={styles.annotationText}>{ann.text}</p>
+                          <small className={styles.annotationMeta}>
+                            {new Date(ann.created_at).toLocaleDateString()}
+                          </small>
+                        </div>
+                        <button
+                          className={styles.deleteNoteButton}
+                          onClick={() => handleDeleteNote(ann.id)}
+                          title="Delete note"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={styles.emptyState}>No notes yet. Add one to get started!</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Timeline Comparison Panel */}
+        {showTimeline && (
+          <div className={styles.modal}>
+            <div className={styles.modalContent}>
+              <div className={styles.modalHeader}>
+                <h3>📈 Research Timeline</h3>
+                <button onClick={() => setShowTimeline(false)} className={styles.modalClose}>
+                  ✕
+                </button>
+              </div>
+
+              <div className={styles.timelineSection}>
+                <h4>Recent Research</h4>
+                <div className={styles.timelineList}>
+                  {supabaseHistory.slice(0, 10).map((item: any, i: number) => (
+                    <div
+                      key={item.id}
+                      className={styles.timelineItem}
+                      onClick={() => {
+                        if (result && item.topic !== result.topic) {
+                          const comparison = getResearchComparison(result, item);
+                          setSelectedComparison(comparison);
+                        }
+                      }}
+                    >
+                      <div className={styles.timelineDate}>
+                        {new Date(item.created_at).toLocaleDateString()}
+                      </div>
+                      <div className={styles.timelineContent}>
+                        <strong>{item.topic}</strong>
+                        <small>{item.method === "perplexity-claude" ? "P+C" : "P"}</small>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {selectedComparison && (
+                  <div className={styles.comparisonResults}>
+                    <h4>Changes Detected</h4>
+                    {selectedComparison.length > 0 ? (
+                      selectedComparison.map((change: any, i: number) => (
+                        <div key={i} className={styles.changeItem}>
+                          <strong>{change.description}</strong>
+                          {change.value1 && change.value2 && (
+                            <div className={styles.changeValues}>
+                              <span className={styles.before}>📍 {change.value1}</span>
+                              <span className={styles.arrow}>→</span>
+                              <span className={styles.after}>📍 {change.value2}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <p className={styles.noChanges}>No significant changes detected</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Debug Modal */}
         {showDebug && (
           <div className={styles.modal}>
@@ -1258,6 +1395,22 @@ export default function Home() {
                   >
                     🔍 Claims ({claims.length})
                     {claimConflicts.length > 0 && <span style={{ marginLeft: "6px", color: "#f44336" }}>⚠️</span>}
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowAnnotations(true)}
+                  className={styles.toggleButton}
+                  title="View and add notes"
+                >
+                  📝 Notes ({annotations.length})
+                </button>
+                {supabaseHistory.length > 1 && (
+                  <button
+                    onClick={() => setShowTimeline(true)}
+                    className={styles.toggleButton}
+                    title="Compare research over time"
+                  >
+                    📈 Timeline
                   </button>
                 )}
               </div>

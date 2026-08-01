@@ -1539,3 +1539,210 @@
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
+
+/* Annotations & Timeline Styles */
+.annotationsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.annotationInput {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  border: 2px solid #e0e0e0;
+}
+
+.noteInput {
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 0.95em;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.noteInput:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.addNoteButton {
+  padding: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.addNoteButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.annotationsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.annotationItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-left: 4px solid #667eea;
+  border-radius: 6px;
+}
+
+.annotationContent {
+  flex: 1;
+}
+
+.annotationText {
+  margin: 0 0 6px 0;
+  color: #333;
+  line-height: 1.5;
+}
+
+.annotationMeta {
+  color: #999;
+  font-size: 0.85em;
+}
+
+.deleteNoteButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  margin-left: 8px;
+  transition: all 0.2s;
+}
+
+.deleteNoteButton:hover {
+  background: #ffebee;
+  border-radius: 4px;
+}
+
+.timelineSection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.timelineSection h4 {
+  margin: 0;
+  color: #333;
+}
+
+.timelineList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timelineItem {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.timelineItem:hover {
+  background: #efefef;
+  border-color: #667eea;
+}
+
+.timelineDate {
+  color: #667eea;
+  font-weight: 600;
+  font-size: 0.9em;
+  min-width: 80px;
+}
+
+.timelineContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.timelineContent strong {
+  color: #333;
+}
+
+.timelineContent small {
+  color: #999;
+  font-size: 0.85em;
+}
+
+.comparisonResults {
+  border-top: 2px solid #e0e0e0;
+  padding-top: 16px;
+}
+
+.comparisonResults h4 {
+  margin: 0 0 12px 0;
+  color: #333;
+}
+
+.changeItem {
+  padding: 12px;
+  background: #e3f2fd;
+  border-left: 4px solid #2196f3;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.changeItem strong {
+  display: block;
+  color: #1976d2;
+  margin-bottom: 8px;
+}
+
+.changeValues {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+}
+
+.before,
+.after {
+  background: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #666;
+}
+
+.arrow {
+  color: #2196f3;
+  font-weight: 600;
+}
+
+.noChanges {
+  color: #666;
+  text-align: center;
+  padding: 16px;
+  background: #f9f9f9;
+  border-radius: 6px;
+}
