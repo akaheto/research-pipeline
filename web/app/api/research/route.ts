@@ -1,53 +1,5 @@
 import { NextRequest } from "next/server";
 
-const mockFindings = (topic: string) => [
-  {
-    text: `Key finding about ${topic}: This demonstrates how the research pipeline works with real data collection and processing.`,
-    source: {
-      url: "https://example.com/article1",
-      title: "Example Research Source",
-      domain: "example.com",
-      retrieved_at: new Date().toISOString(),
-    },
-    scores: {
-      relevance: 0.95,
-      credibility: 0.92,
-      recency: 0.98,
-      combined: 0.95,
-    },
-  },
-  {
-    text: `Research insight about ${topic}: Understanding trends requires analyzing multiple sources and comprehensive analysis.`,
-    source: {
-      url: "https://research.example.com/paper",
-      title: "Research Paper Portal",
-      domain: "research.example.com",
-      retrieved_at: new Date().toISOString(),
-    },
-    scores: {
-      relevance: 0.88,
-      credibility: 0.95,
-      recency: 0.85,
-      combined: 0.89,
-    },
-  },
-  {
-    text: `Analysis of ${topic}: Real-time data collection and processing provides comprehensive insights for decision-making.`,
-    source: {
-      url: "https://news.example.com/report",
-      title: "News and Analysis",
-      domain: "news.example.com",
-      retrieved_at: new Date().toISOString(),
-    },
-    scores: {
-      relevance: 0.82,
-      credibility: 0.88,
-      recency: 0.92,
-      combined: 0.87,
-    },
-  },
-];
-
 function createSSEResponse(encoder: TextEncoder, controller: ReadableStreamDefaultController) {
   return {
     send: (event: string, data: unknown) => {
@@ -83,7 +35,60 @@ export async function POST(request: NextRequest) {
 
         // Stage 1: Searching
         sse.send("progress", { stage: "searching", message: "🔍 Searching the web..." });
-        await new Promise((r) => setTimeout(r, 800));
+
+        const apiKey = process.env.PERPLEXITY_API_KEY;
+        if (!apiKey) {
+          throw new Error("PERPLEXITY_API_KEY not configured");
+        }
+
+        // Call Perplexity API
+        const response = await fetch("https://api.perplexity.ai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "pplx-70b-online",
+            messages: [
+              {
+                role: "system",
+                content: `You are a research assistant. Research the query thoroughly and provide findings as a JSON array.
+Each finding should have:
+- text: The research finding or insight (2-3 sentences)
+- source_url: URL where found
+- source_title: Source name/title
+- source_domain: Domain
+- relevance: 0.0-1.0 relevance score
+- credibility: 0.0-1.0 credibility score
+
+Return ONLY valid JSON array, no markdown. Limit to ${body.max_results || 20} findings.`,
+              },
+              {
+                role: "user",
+                content: `Research this topic: ${body.topic}`,
+              },
+            ],
+            max_tokens: 2000,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Perplexity API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const responseText = data.choices?.[0]?.message?.content || "";
+
+        // Parse JSON from response
+        let findings = [];
+        try {
+          findings = JSON.parse(responseText);
+          if (!Array.isArray(findings)) findings = [findings];
+        } catch (e) {
+          console.error("Failed to parse Perplexity response:", e);
+          throw new Error("Invalid response format from research API");
+        }
 
         // Stage 2: Processing
         sse.send("progress", { stage: "processing", message: "⚙️ Processing findings..." });
@@ -93,12 +98,36 @@ export async function POST(request: NextRequest) {
         sse.send("progress", { stage: "ranking", message: "📊 Ranking by quality..." });
         await new Promise((r) => setTimeout(r, 500));
 
-        // Stage 4: Complete
-        const findings = mockFindings(body.topic).slice(0, body.max_results || 20);
+        // Transform findings to include recency score
+        const processedFindings = findings
+          .slice(0, body.max_results || 20)
+          .map((f: any) => ({
+            text: f.text || "",
+            source: {
+              url: f.source_url || "",
+              title: f.source_title || "Unknown Source",
+              domain: f.source_domain || new URL(f.source_url).hostname || "",
+              retrieved_at: new Date().toISOString(),
+            },
+            scores: {
+              relevance: Math.min(1, Math.max(0, f.relevance || 0.5)),
+              credibility: Math.min(1, Math.max(0, f.credibility || 0.7)),
+              recency: 0.85,
+              combined: 0,
+            },
+          }))
+          .map((f: any) => ({
+            ...f,
+            scores: {
+              ...f.scores,
+              combined: f.scores.relevance * 0.5 + f.scores.credibility * 0.3 + f.scores.recency * 0.2,
+            },
+          }));
+
         const result = {
           topic: body.topic,
-          findings,
-          summary: `Comprehensive research findings on "${body.topic}" collected from multiple sources with quality scoring across relevance, credibility, and recency dimensions.`,
+          findings: processedFindings,
+          summary: `Comprehensive research findings on "${body.topic}" from Perplexity real-time web search with quality scoring.`,
           created_at: new Date().toISOString(),
         };
 
@@ -107,7 +136,9 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.error("Research streaming error:", error);
         const sse = createSSEResponse(encoder, controller);
-        sse.send("error", { message: "Research failed" });
+        sse.send("error", {
+          message: error instanceof Error ? error.message : "Research failed",
+        });
         controller.close();
       }
     })();
