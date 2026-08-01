@@ -26,7 +26,10 @@ interface Research {
   topic: string;
   findings: Finding[];
   summary: string;
-  method?: "perplexity-only" | "perplexity-claude";
+  synthesis?: string;
+  method?: "perplexity-only" | "perplexity-claude" | "framework-synthesis";
+  framework?: string;
+  frameworkId?: string;
   cost?: any;
   created_at?: string;
 }
