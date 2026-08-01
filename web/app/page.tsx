@@ -43,6 +43,9 @@ export default function Home() {
   const [history, setHistory] = useState<SearchHistory[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [debugLoading, setDebugLoading] = useState(false);
   const [maxResults, setMaxResults] = useState(20);
   const [similarity, setSimilarity] = useState(0.85);
   const [minScore, setMinScore] = useState(0);
@@ -141,6 +144,19 @@ export default function Home() {
     setTopic(entry.topic);
   };
 
+  const loadDebugInfo = async () => {
+    setDebugLoading(true);
+    try {
+      const response = await fetch("/api/debug");
+      const data = await response.json();
+      setDebugInfo(data);
+    } catch (err) {
+      setDebugInfo({ error: err instanceof Error ? err.message : "Failed to load debug info" });
+    } finally {
+      setDebugLoading(false);
+    }
+  };
+
   const handleDownload = async (format: "docx" | "markdown" | "pdf") => {
     if (!result) return;
 
@@ -214,6 +230,17 @@ export default function Home() {
             title="Analytics"
           >
             📊
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowDebug(true);
+              loadDebugInfo();
+            }}
+            className={styles.settingsButton}
+            title="Debug Info"
+          >
+            🔧
           </button>
         </form>
 
@@ -356,6 +383,104 @@ export default function Home() {
                   })()}
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Debug Modal */}
+        {showDebug && (
+          <div className={styles.modal}>
+            <div className={styles.modalContent}>
+              <div className={styles.modalHeader}>
+                <h3>🔧 Diagnostics</h3>
+                <button onClick={() => setShowDebug(false)} className={styles.modalClose}>
+                  ✕
+                </button>
+              </div>
+
+              {debugLoading ? (
+                <p className={styles.emptyState}>Loading diagnostics...</p>
+              ) : debugInfo?.error ? (
+                <div className={styles.error}>{debugInfo.error}</div>
+              ) : debugInfo ? (
+                <div className={styles.debugContent}>
+                  <div className={styles.debugSection}>
+                    <h4>Environment</h4>
+                    <div className={styles.debugItem}>
+                      <span className={styles.debugLabel}>PERPLEXITY_API_KEY:</span>
+                      <span
+                        className={
+                          debugInfo.environment.perplexityKeySet ? styles.success : styles.warning
+                        }
+                      >
+                        {debugInfo.environment.perplexityKeySet
+                          ? `✓ Set (${debugInfo.environment.perplexityKeyLength} chars, starts with ${debugInfo.environment.perplexityKeyPrefix})`
+                          : "✗ NOT SET"}
+                      </span>
+                    </div>
+                    <div className={styles.debugItem}>
+                      <span className={styles.debugLabel}>Node Environment:</span>
+                      <span>{debugInfo.environment.nodeEnv}</span>
+                    </div>
+                  </div>
+
+                  <div className={styles.debugSection}>
+                    <h4>Perplexity Connection Test</h4>
+                    {debugInfo.tests.perplexityConnection ? (
+                      <>
+                        <div className={styles.debugItem}>
+                          <span className={styles.debugLabel}>Status:</span>
+                          <span
+                            className={
+                              debugInfo.tests.perplexityConnection.status === "SUCCESS"
+                                ? styles.success
+                                : styles.error
+                            }
+                          >
+                            {debugInfo.tests.perplexityConnection.status}
+                          </span>
+                        </div>
+                        {debugInfo.tests.perplexityConnection.statusCode && (
+                          <div className={styles.debugItem}>
+                            <span className={styles.debugLabel}>HTTP Status:</span>
+                            <span>{debugInfo.tests.perplexityConnection.statusCode}</span>
+                          </div>
+                        )}
+                        {debugInfo.tests.perplexityConnection.responseTime && (
+                          <div className={styles.debugItem}>
+                            <span className={styles.debugLabel}>Response Time:</span>
+                            <span>{debugInfo.tests.perplexityConnection.responseTime}ms</span>
+                          </div>
+                        )}
+                        {debugInfo.tests.perplexityConnection.error && (
+                          <div className={styles.debugSection}>
+                            <h5>Error Details:</h5>
+                            <pre className={styles.debugPre}>
+                              {debugInfo.tests.perplexityConnection.error}
+                            </pre>
+                          </div>
+                        )}
+                        {debugInfo.tests.perplexityConnection.responsePreview && (
+                          <div className={styles.debugSection}>
+                            <h5>Response Preview:</h5>
+                            <pre className={styles.debugPre}>
+                              {debugInfo.tests.perplexityConnection.responsePreview}
+                            </pre>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className={styles.emptyState}>No test data available</p>
+                    )}
+                  </div>
+
+                  <div className={styles.debugSection}>
+                    <p className={styles.debugTimestamp}>
+                      Last checked: {new Date(debugInfo.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         )}

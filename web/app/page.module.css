@@ -642,6 +642,78 @@
   font-size: 0.85em;
 }
 
+.debugContent {
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.debugSection {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.debugSection h4,
+.debugSection h5 {
+  color: #333;
+  margin: 10px 0 8px 0;
+  font-size: 0.95em;
+}
+
+.debugSection h5 {
+  font-size: 0.9em;
+  margin-top: 12px;
+}
+
+.debugItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.debugLabel {
+  color: #666;
+  font-weight: 600;
+  flex: 1;
+}
+
+.debugItem span:last-child {
+  color: #333;
+  text-align: right;
+  flex: 1;
+}
+
+.success {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+.warning {
+  color: #e67e22;
+  font-weight: 600;
+}
+
+.debugPre {
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  border: 1px solid #e0e0e0;
+  font-size: 0.85em;
+  line-height: 1.4;
+  color: #333;
+  margin: 8px 0;
+}
+
+.debugTimestamp {
+  color: #999;
+  font-size: 0.85em;
+  text-align: center;
+  margin: 0;
+}
+
 @media (max-width: 768px) {
   .container {
     padding: 15px;
